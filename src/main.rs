@@ -2,7 +2,7 @@ use vk_engine::*;
 use std::time;
 use erupt::vk;
 use winit::event::{Event, WindowEvent, VirtualKeyCode};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::event_loop::{ControlFlow};
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
@@ -43,10 +43,11 @@ fn main() {
             Event::MainEventsCleared => { //Main body
                 //If drawing continously, put rendering code here directly
 
+
                 let wait_fences = [vulkan_app.in_flight_fences[current_frame]];
                 unsafe {vulkan_app.device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
 
-                // Acquire index of image from the swapchain, signal semaphore once finishe
+                // Acquire index of image from the swapchain, signal semaphore once finished
                 let image_index = unsafe {
                     vulkan_app.device.acquire_next_image_khr(
                         vulkan_app.swapchain,
@@ -93,21 +94,13 @@ fn main() {
                     .wait_dst_stage_mask(&wait_stages)
                     .command_buffers(&cmd_buffers)
                     .signal_semaphores(&signal_sems)];
-                //println!("updated constant to {}", vulkan_app.push_constants[0]);
                 unsafe {
                     vulkan_app.device.reset_fences(&wait_fences).unwrap();
                     vulkan_app.device.queue_submit(vulkan_app.graphics_queue, &submits, vulkan_app.in_flight_fences[current_frame]).expect("Queue submission failed!");
                 }
 
                 // Present rendered image to the swap chain such that it will show up on screen
-                let swapchains = [vulkan_app.swapchain];
-                let image_indices = [image_index];
-                let present_info = vk::PresentInfoKHRBuilder::new()
-                    .wait_semaphores(&signal_sems)
-                    .swapchains(&swapchains)
-                    .image_indices(&image_indices);
-                unsafe {vulkan_app.device.queue_present_khr(vulkan_app.present_queue, &present_info)}.expect("Presenting to queue failed!");
-
+                vulkan_app.present_image(image_index, signal_sems);
                 timer = time::Instant::now(); //Reset timer after frame is presented
 
                 current_frame = current_frame % MAX_FRAMES_IN_FLIGHT;

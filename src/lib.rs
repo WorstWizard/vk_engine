@@ -1,6 +1,7 @@
-use winit::event::{Event, WindowEvent, VirtualKeyCode};
+mod engine_core;
+
 use winit::window::{Window, WindowBuilder};
-use winit::event_loop::{EventLoop, ControlFlow};
+use winit::event_loop::{EventLoop};
 
 use erupt::{vk, {EntryLoader, InstanceLoader, DeviceLoader}, {ExtendableFrom, SmallVec}, utils::{surface}, cstr};
 
@@ -8,11 +9,10 @@ use std::ffi::{CString, CStr};
 use std::os::raw::{c_char, c_void};
 use std::collections::HashSet;
 use std::mem::size_of;
-use std::time;
 
 const HEIGHT: u32 = 800;
 const WIDTH: u32 = 800;
-const APP_TITLE: &str = "Mandelbrot in Vulkan - Kristian Knudsen";
+const APP_TITLE: &str = "VK Engine by KK";
 
 
 // Shaders
@@ -28,18 +28,6 @@ const VALIDATION_ENABLED: bool = false;
 
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
-
-
-
-unsafe extern "system" fn debug_callback(
-    _message_severity: vk::DebugUtilsMessageSeverityFlagBitsEXT,
-    _message_type: vk::DebugUtilsMessageTypeFlagsEXT,
-    p_callback_data: *const vk::DebugUtilsMessengerCallbackDataEXT,
-    _p_user_data: *mut c_void
-) -> vk::Bool32 {
-    eprintln!("{}", CStr::from_ptr((*p_callback_data).p_message).to_string_lossy());
-    vk::FALSE
-}
 
 pub fn init_window() -> (Window, EventLoop<()>) {
     let event_loop = EventLoop::new();
@@ -128,7 +116,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     }
 
     //// Application info
-    let app_name = CString::new("Hello Triangle").unwrap();
+    let app_name = CString::new(APP_TITLE).unwrap();
     let engine_name = CString::new("No Engine").unwrap();
 
     let app_info = vk::ApplicationInfoBuilder::new()
@@ -167,90 +155,13 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     let surface = unsafe { surface::create_surface(&instance, &window, None) }.unwrap();
 
     //// Physical device and queues
-    const GRAPHICS_Q_IDX: usize = 0;
-    const PRESENT_Q_IDX: usize = 1;
-    const DEVICE_EXTS: [*const c_char; 1] = [vk::KHR_SWAPCHAIN_EXTENSION_NAME];
-
-    // Swapchain queries
-    fn query_swap_chain_support(device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR, instance: &InstanceLoader)
-    -> (vk::SurfaceCapabilitiesKHR, Vec<vk::SurfaceFormatKHR>, Vec<vk::PresentModeKHR>) {
-            let surface_capabilities = unsafe {instance.get_physical_device_surface_capabilities_khr(*device, *surface)}.unwrap();
-            let formats = unsafe {instance.get_physical_device_surface_formats_khr(*device, *surface, None)}.unwrap();
-            let present_modes = unsafe {instance.get_physical_device_surface_present_modes_khr(*device, *surface, None)}.unwrap();
-            (surface_capabilities, formats.to_vec(), present_modes.to_vec())
-    }
-
+    const DEVICE_EXTS: [*const c_char; 1] = engine_core::DEVICE_EXTS;
+    const GRAPHICS_Q_IDX: usize = engine_core::GRAPHICS_Q_IDX;
+    const PRESENT_Q_IDX: usize = engine_core::PRESENT_Q_IDX;
     let (physical_device, queue_family_indices) = {
-        fn find_queue_families(device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR, instance: &InstanceLoader) -> Option<[u32; 2]> {
-            let queue_family_properties = unsafe {instance.get_physical_device_queue_family_properties(*device, None)};
-            let mut indices = [0; 2];
-            let mut found_queues = [false; 2];
-            'outer:
-            for (i, queue_family) in queue_family_properties.iter().enumerate() {
-                if !found_queues[GRAPHICS_Q_IDX] && queue_family.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
-                    indices[GRAPHICS_Q_IDX] = i as u32; //Graphics queue found, look for present queue (probably the same)
-                    found_queues[GRAPHICS_Q_IDX] = true;
-                }
-                if !found_queues[PRESENT_Q_IDX] && unsafe {instance.get_physical_device_surface_support_khr(*device, i as u32, *surface)}.unwrap() {
-                    indices[PRESENT_Q_IDX] = i as u32; //Graphics queue found, look for present queue (probably the same)
-                    found_queues[PRESENT_Q_IDX] = true;
-                }
-                for queue_found in found_queues {
-                    if !queue_found {break 'outer}
-                }
-                return Some(indices) //Only reached if the above for loop does not break
-            }
-            None
-        }
-        
-        fn check_device_extension_support(device: &vk::PhysicalDevice, instance: &InstanceLoader) -> bool {
-            let device_extension_properties = unsafe {instance.enumerate_device_extension_properties(*device, None, None)}.unwrap();
-            let available_extension_names: Vec<&str> = device_extension_properties
-                .iter()
-                .map(|ext| unsafe {CStr::from_ptr(ext.extension_name.as_ptr())}.to_str().unwrap() ).collect();
-            for extension in DEVICE_EXTS {
-                let ext_name = unsafe {CStr::from_ptr(extension)}.to_str().unwrap();
-                if !available_extension_names.contains(&ext_name) {
-                    return false
-                }
-            }
-            return true
-        }
-
-        //Checking device suitability
-        let devices = unsafe {instance.enumerate_physical_devices(None)}.unwrap();
-        if devices.len() == 0 {panic!("No devices with Vulkan support!")}
-        fn is_device_suitable(device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR, instance: &InstanceLoader) -> bool {
-            let device_properties = unsafe {instance.get_physical_device_properties(*device)};
-            let device_features = unsafe {instance.get_physical_device_features(*device)};
-            println!("Device name: {}", unsafe {CStr::from_ptr(device_properties.device_name.as_ptr())}.to_string_lossy());
-
-            if !check_device_extension_support(device, instance) {return false} //Must have extension to query swap chain
-            let (_, formats, present_modes) = query_swap_chain_support(device, surface, instance);
-
-            return device_features.geometry_shader == vk::TRUE
-                && if let Some(_) = find_queue_families(device, surface, instance) {true} else {false}
-                && !formats.is_empty() && !present_modes.is_empty()
-                
-        }
-        fn rate_device_suitability(device_properties: &vk::PhysicalDeviceProperties, device_features: &vk::PhysicalDeviceFeatures) -> u32 {
-            let mut score = 0;
-            if device_properties.device_type == vk::PhysicalDeviceType::DISCRETE_GPU {score += 1000}
-            score += device_properties.limits.max_image_dimension2_d;
-            if device_features.geometry_shader == vk::FALSE {return 0}
-            return score
-        }
-    
         //Picking device
-        let physical_device = devices.into_iter().max_by_key(
-            |device| {
-                let device_properties = unsafe {instance.get_physical_device_properties(*device)};
-                let device_features = unsafe {instance.get_physical_device_features(*device)};
-                rate_device_suitability(&device_properties, &device_features)
-            }
-        ).expect("No devices could be found!");
-        if !is_device_suitable(&physical_device, &surface, &instance) {panic!("No suitable GPU found!")}
-        let queue_family_indices = find_queue_families(&physical_device, &surface, &instance).unwrap();
+        let physical_device = engine_core::find_physical_device(&instance, &surface);
+        let queue_family_indices = engine_core::device_utils::find_queue_families(&instance, &surface, &physical_device).unwrap();
         
         (physical_device, queue_family_indices)
     };
@@ -310,7 +221,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
 
     //// Creating swapchain
     let (swapchain, image_format, swapchain_extent) = {
-        let (surface_capabilities, formats, present_modes) = query_swap_chain_support(&physical_device, &surface, &instance);
+        let (surface_capabilities, formats, present_modes) = engine_core::device_utils::query_swap_chain_support(&physical_device, &surface, &instance);
         let surface_format = choose_swap_surface_format(&formats);
         let present_mode = choose_swap_present_mode(&present_modes);
         let swap_extent = choose_swap_extent(&surface_capabilities, &window);
@@ -585,7 +496,7 @@ fn init_debug_messenger_info() -> vk::DebugUtilsMessengerCreateInfoEXTBuilder<'s
         vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION_EXT |
         vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE_EXT
     )
-    .pfn_user_callback(Some(debug_callback));
+    .pfn_user_callback(Some(engine_core::debug_callback));
     messenger_info
 }
 
@@ -639,4 +550,16 @@ pub fn allocate_and_record_command_buffers(
         }
     }
     return command_buffers;
+}
+
+impl VulkanApp {
+    pub fn present_image(&self, image_index: u32, signal_semaphore: [vk::Semaphore; 1]) {
+        let swapchains = [self.swapchain];
+        let image_indices = [image_index];
+        let present_info = vk::PresentInfoKHRBuilder::new()
+            .wait_semaphores(&signal_semaphore)
+            .swapchains(&swapchains)
+            .image_indices(&image_indices);
+        unsafe {self.device.queue_present_khr(self.present_queue, &present_info)}.expect("Presenting to queue failed!");
+    }
 }
