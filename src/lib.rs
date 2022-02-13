@@ -3,12 +3,14 @@ mod engine_core;
 use winit::window::{Window, WindowBuilder};
 use winit::event_loop::{EventLoop};
 
-use erupt::{vk, {EntryLoader, InstanceLoader, DeviceLoader}, {ExtendableFrom, SmallVec}, utils::{surface}, cstr};
+use erupt::{vk, {EntryLoader, InstanceLoader, DeviceLoader}, {ExtendableFrom, SmallVec}, utils::{surface}};
 
-use std::ffi::{CString, CStr};
+use std::ffi::{CString};
 use std::os::raw::{c_char, c_void};
 use std::collections::HashSet;
 use std::mem::size_of;
+
+use engine_core::{VALIDATION_ENABLED, VALIDATION_LAYERS};
 
 const HEIGHT: u32 = 800;
 const WIDTH: u32 = 800;
@@ -18,14 +20,6 @@ const APP_TITLE: &str = "VK Engine by KK";
 // Shaders
 const VERT_SHADER: &[u8] = include_bytes!("man_vert.spv");
 const FRAG_SHADER: &[u8] = include_bytes!("man_frag.spv");
-
-
-const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
-#[cfg(debug_assertions)]
-const VALIDATION_ENABLED: bool = true;
-#[cfg(not(debug_assertions))]
-const VALIDATION_ENABLED: bool = false;
-
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
@@ -93,31 +87,13 @@ impl Drop for VulkanApp {
 pub fn init_vulkan(window: &Window) -> VulkanApp {
     let entry = Box::new(EntryLoader::new().unwrap());
 
-    fn check_validation_layer_support(entry: &EntryLoader) -> bool{
-        let available_layers = unsafe {entry.enumerate_instance_layer_properties(None).unwrap()};
-        for layer in &VALIDATION_LAYERS {
-            let mut found = false;
-            for layer_properties in &available_layers {
-                let layer_name_ptr = &layer_properties.layer_name[0] as *const i8;
-                unsafe {
-                    //println!("{:?}", CStr::from_ptr(layer_name_ptr));
-                    if CStr::from_ptr(layer_name_ptr) == CStr::from_ptr(*layer) {
-                        found = true; break
-                    }
-                }
-            }
-            if !found {return false}
-        }
-        return true
-    }
-
-    if VALIDATION_ENABLED && !check_validation_layer_support(&entry) {
+    if VALIDATION_ENABLED && !engine_core::check_validation_layer_support(&entry) {
         panic!("Validation layer requested but not available!");
     }
 
     //// Application info
     let app_name = CString::new(APP_TITLE).unwrap();
-    let engine_name = CString::new("No Engine").unwrap();
+    let engine_name = CString::new("KK Engine").unwrap();
 
     let app_info = vk::ApplicationInfoBuilder::new()
         .application_name(&app_name)
@@ -188,43 +164,12 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     let graphics_queue = unsafe {logical_device.get_device_queue(queue_family_indices[GRAPHICS_Q_IDX], 0)};
     let present_queue = unsafe {logical_device.get_device_queue(queue_family_indices[PRESENT_Q_IDX], 0)};
 
-
-    //// Picking swapchain settings
-    fn choose_swap_surface_format(formats: &Vec<vk::SurfaceFormatKHR>) -> vk::SurfaceFormatKHR {
-        for available_format in formats {
-            if available_format.format == vk::Format::R8G8B8A8_SRGB && available_format.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR_KHR {
-                return *available_format
-            }
-        }
-        return formats[0];
-    }
-    fn choose_swap_present_mode(present_modes: &Vec<vk::PresentModeKHR>) -> vk::PresentModeKHR {
-        for available_mode in present_modes {
-            if *available_mode == vk::PresentModeKHR::MAILBOX_KHR {
-                return *available_mode
-            }
-        }
-        return vk::PresentModeKHR::FIFO_KHR;
-    }
-    fn choose_swap_extent(capabilities: &vk::SurfaceCapabilitiesKHR, window: &Window) -> vk::Extent2D {
-        //If width/height of current extent is u32::MAX, the window manager allows selecting an extent different from the window resolution
-        if capabilities.current_extent.width != u32::MAX { //Extent is specified already, must use it
-            return capabilities.current_extent
-        } else {
-            let window_size = window.inner_size();
-            let mut actual_extent = vk::Extent2D{width: window_size.width, height: window_size.height};
-            actual_extent.width = actual_extent.width.clamp(capabilities.min_image_extent.width, capabilities.max_image_extent.width);
-            actual_extent.height = actual_extent.height.clamp(capabilities.min_image_extent.height, capabilities.max_image_extent.height);
-            return actual_extent;
-        }
-    }
-
     //// Creating swapchain
     let (swapchain, image_format, swapchain_extent) = {
         let (surface_capabilities, formats, present_modes) = engine_core::device_utils::query_swap_chain_support(&physical_device, &surface, &instance);
-        let surface_format = choose_swap_surface_format(&formats);
-        let present_mode = choose_swap_present_mode(&present_modes);
-        let swap_extent = choose_swap_extent(&surface_capabilities, &window);
+        let surface_format = engine_core::swapchain_utils::choose_swap_surface_format(&formats);
+        let present_mode = engine_core::swapchain_utils::choose_swap_present_mode(&present_modes);
+        let swap_extent = engine_core::swapchain_utils::choose_swap_extent(&window, &surface_capabilities);
         let image_count = {
             let mut count = surface_capabilities.min_image_count + 1;
             if surface_capabilities.min_image_count > 0 && count > surface_capabilities.max_image_count {count = surface_capabilities.max_image_count}

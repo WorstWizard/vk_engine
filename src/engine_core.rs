@@ -1,8 +1,16 @@
 use std::ffi::{CStr};
 use std::os::raw::{c_void, c_char};
-use erupt::{vk, InstanceLoader};
+use erupt::{vk, InstanceLoader, EntryLoader};
+use erupt::cstr;
 
 pub mod device_utils;
+pub mod swapchain_utils;
+
+pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
+#[cfg(debug_assertions)]
+pub const VALIDATION_ENABLED: bool = true;
+#[cfg(not(debug_assertions))]
+pub const VALIDATION_ENABLED: bool = false;
 
 pub const DEVICE_EXTS: [*const c_char; 1] = [vk::KHR_SWAPCHAIN_EXTENSION_NAME];
 pub const GRAPHICS_Q_IDX: usize = 0;
@@ -16,6 +24,24 @@ pub unsafe extern "system" fn debug_callback(
 ) -> vk::Bool32 {
     eprintln!("{}", CStr::from_ptr((*p_callback_data).p_message).to_string_lossy());
     vk::FALSE
+}
+
+pub fn check_validation_layer_support(entry: &EntryLoader) -> bool{
+    let available_layers = unsafe {entry.enumerate_instance_layer_properties(None).unwrap()};
+    for layer in &VALIDATION_LAYERS {
+        let mut found = false;
+        for layer_properties in &available_layers {
+            let layer_name_ptr = &layer_properties.layer_name[0] as *const i8;
+            unsafe {
+                //println!("{:?}", CStr::from_ptr(layer_name_ptr));
+                if CStr::from_ptr(layer_name_ptr) == CStr::from_ptr(*layer) {
+                    found = true; break
+                }
+            }
+        }
+        if !found {return false}
+    }
+    return true
 }
 
 pub fn find_physical_device(instance: &InstanceLoader, surface: &vk::SurfaceKHR) -> vk::PhysicalDevice {
