@@ -4,13 +4,14 @@ use std::ffi::{CStr};
 const GRAPHICS_Q_IDX: usize = super::GRAPHICS_Q_IDX; //Bad: The queue indices must be 0 and 1, but aren't defined here. Should be dynamic instead.
 const PRESENT_Q_IDX: usize = super::PRESENT_Q_IDX;
 
-pub fn query_swap_chain_support(device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR, instance: &InstanceLoader)
+pub fn query_swap_chain_support(instance: &InstanceLoader, device: &vk::PhysicalDevice, surface: &vk::SurfaceKHR)
 -> (vk::SurfaceCapabilitiesKHR, Vec<vk::SurfaceFormatKHR>, Vec<vk::PresentModeKHR>) {
         let surface_capabilities = unsafe {instance.get_physical_device_surface_capabilities_khr(*device, *surface)}.unwrap();
         let formats = unsafe {instance.get_physical_device_surface_formats_khr(*device, *surface, None)}.unwrap();
         let present_modes = unsafe {instance.get_physical_device_surface_present_modes_khr(*device, *surface, None)}.unwrap();
         (surface_capabilities, formats.to_vec(), present_modes.to_vec())
 }
+//Find supported (command) queue families. We need certain ones for the engine to work
 pub fn find_queue_families(instance: &InstanceLoader, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice) -> Option<[u32; 2]> {
     let queue_family_properties = unsafe {instance.get_physical_device_queue_family_properties(*device, None)};
     let mut indices = [0; 2];
@@ -32,14 +33,14 @@ pub fn find_queue_families(instance: &InstanceLoader, surface: &vk::SurfaceKHR, 
     }
     None
 }
-
+// How good is a given physical device? Uses heuristics to rank, picks best. Also invalidates devices that won't work
 pub fn device_suitability(instance: &InstanceLoader, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice) -> u32 {
     let device_properties = unsafe {instance.get_physical_device_properties(*device)};
     let device_features = unsafe {instance.get_physical_device_features(*device)};
 
     let mut score = 0; //Score of 0 => entirely unsuitable
-    if !check_device_extension_support(device, instance) {return 0} //Must have extension to query swap chain
-    let (_, formats, present_modes) = query_swap_chain_support(device, surface, instance);
+    if !check_device_extension_support(instance, device) {return 0} //Must have extension to query swap chain
+    let (_, formats, present_modes) = query_swap_chain_support(instance, device, surface);
     if device_features.geometry_shader == vk::FALSE || formats.is_empty() || present_modes.is_empty() {return 0}
     if let None = find_queue_families(instance, surface, device) {return 0}
 
@@ -49,8 +50,8 @@ pub fn device_suitability(instance: &InstanceLoader, surface: &vk::SurfaceKHR, d
 
     return score
 }
-
-fn check_device_extension_support(device: &vk::PhysicalDevice, instance: &InstanceLoader) -> bool {
+// Physical device needs to support certain extensions
+fn check_device_extension_support(instance: &InstanceLoader, device: &vk::PhysicalDevice) -> bool {
     let device_extension_properties = unsafe {instance.enumerate_device_extension_properties(*device, None, None)}.unwrap();
     let available_extension_names: Vec<&str> = device_extension_properties
         .iter()

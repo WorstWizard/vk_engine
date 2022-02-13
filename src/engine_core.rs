@@ -3,8 +3,8 @@ use std::os::raw::{c_void, c_char};
 use erupt::{vk, InstanceLoader, EntryLoader};
 use erupt::cstr;
 
-pub mod device_utils;
-pub mod swapchain_utils;
+pub mod phys_device;
+pub mod swapchain;
 
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
 #[cfg(debug_assertions)]
@@ -51,7 +51,7 @@ pub fn find_physical_device(instance: &InstanceLoader, surface: &vk::SurfaceKHR)
     let mut suitability = 0;
     let physical_device = devices.into_iter().max_by_key(
     |device| {
-        suitability = device_utils::device_suitability(&instance, &surface, &device)
+        suitability = phys_device::device_suitability(&instance, &surface, &device)
     }
     ).expect("No suitable GPU could be found!");
     if suitability <= 0 {panic!("No suitable GPU could be found!")}

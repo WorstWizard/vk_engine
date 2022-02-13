@@ -137,7 +137,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     let (physical_device, queue_family_indices) = {
         //Picking device
         let physical_device = engine_core::find_physical_device(&instance, &surface);
-        let queue_family_indices = engine_core::device_utils::find_queue_families(&instance, &surface, &physical_device).unwrap();
+        let queue_family_indices = engine_core::phys_device::find_queue_families(&instance, &surface, &physical_device).unwrap();
         
         (physical_device, queue_family_indices)
     };
@@ -166,10 +166,10 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
 
     //// Creating swapchain
     let (swapchain, image_format, swapchain_extent) = {
-        let (surface_capabilities, formats, present_modes) = engine_core::device_utils::query_swap_chain_support(&physical_device, &surface, &instance);
-        let surface_format = engine_core::swapchain_utils::choose_swap_surface_format(&formats);
-        let present_mode = engine_core::swapchain_utils::choose_swap_present_mode(&present_modes);
-        let swap_extent = engine_core::swapchain_utils::choose_swap_extent(&window, &surface_capabilities);
+        let (surface_capabilities, formats, present_modes) = engine_core::phys_device::query_swap_chain_support(&instance, &physical_device, &surface);
+        let surface_format = engine_core::swapchain::choose_swap_surface_format(&formats);
+        let present_mode = engine_core::swapchain::choose_swap_present_mode(&present_modes, vk::PresentModeKHR::MAILBOX_KHR);
+        let swap_extent = engine_core::swapchain::choose_swap_extent(&window, &surface_capabilities);
         let image_count = {
             let mut count = surface_capabilities.min_image_count + 1;
             if surface_capabilities.min_image_count > 0 && count > surface_capabilities.max_image_count {count = surface_capabilities.max_image_count}

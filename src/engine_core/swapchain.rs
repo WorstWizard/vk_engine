@@ -1,24 +1,28 @@
 use erupt::vk;
 use winit::window::Window;
 
+// Surface format details how images are represented in memory
 pub fn choose_swap_surface_format(formats: &Vec<vk::SurfaceFormatKHR>) -> vk::SurfaceFormatKHR {
     for available_format in formats {
+        // If preferred format available, return it
         if available_format.format == vk::Format::R8G8B8A8_SRGB && available_format.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR_KHR {
             return *available_format
         }
     }
+    // Otherwise use the first in list (usually good)
     return formats[0];
 }
-
-pub fn choose_swap_present_mode(present_modes: &Vec<vk::PresentModeKHR>) -> vk::PresentModeKHR {
+// How are images presented to the surface from the swapchain. IMMEDIATE_KHR to turn any vertical sync off, FIFO_KHR is "normal" vsync
+// MAILBOX_KHR is preferred option for vsync with low latency; images at the back of the queue are replaced
+pub fn choose_swap_present_mode(present_modes: &Vec<vk::PresentModeKHR>, preferred_mode: vk::PresentModeKHR) -> vk::PresentModeKHR {
     for available_mode in present_modes {
-        if *available_mode == vk::PresentModeKHR::MAILBOX_KHR {
+        if *available_mode == preferred_mode {
             return *available_mode
         }
     }
     return vk::PresentModeKHR::FIFO_KHR;
 }
-
+    
 pub fn choose_swap_extent(window: &Window, capabilities: &vk::SurfaceCapabilitiesKHR) -> vk::Extent2D {
     //If width/height of current extent is u32::MAX, the window manager allows selecting an extent different from the window resolution
     if capabilities.current_extent.width != u32::MAX { //Extent is specified already, must use it
