@@ -1,6 +1,7 @@
 use std::ffi::{CStr};
 use std::os::raw::{c_void, c_char};
-use erupt::{vk, InstanceLoader, EntryLoader};
+use winit::window::Window;
+use erupt::{vk, EntryLoader, InstanceLoader, DeviceLoader};
 use erupt::cstr;
 
 pub mod phys_device;
@@ -56,4 +57,48 @@ pub fn find_physical_device(instance: &InstanceLoader, surface: &vk::SurfaceKHR)
     ).expect("No suitable GPU could be found!");
     if suitability <= 0 {panic!("No suitable GPU could be found!")}
     physical_device
+}
+
+pub fn create_swapchain(
+    instance: &InstanceLoader,
+    window: &Window,
+    surface: &vk::SurfaceKHR,
+    physical_device: &vk::PhysicalDevice,
+    logical_device: &DeviceLoader,
+    queue_family_indices: [u32; 2]
+) -> (vk::SwapchainKHR, vk::Format, vk::Extent2D) {
+
+    let (surface_capabilities, formats, present_modes) = phys_device::query_swap_chain_support(instance, surface, physical_device);
+    let surface_format = swapchain::choose_swap_surface_format(&formats);
+    let present_mode = swapchain::choose_swap_present_mode(&present_modes, vk::PresentModeKHR::MAILBOX_KHR);
+    let swap_extent = swapchain::choose_swap_extent(window, &surface_capabilities);
+    let image_count = { //Pick smaller value between minimum + 1 and the maximum
+        let mut count = surface_capabilities.min_image_count + 1;
+        if surface_capabilities.max_image_count > 0 && count > surface_capabilities.max_image_count {count = surface_capabilities.max_image_count}
+        count
+    };
+    let mut swapchain_info = vk::SwapchainCreateInfoKHRBuilder::new()
+        //Defined from above values v v v
+        .surface(*surface)
+        .min_image_count(image_count)
+        .image_format(surface_format.format)
+        .image_color_space(surface_format.color_space)
+        .image_extent(swap_extent)
+        .present_mode(present_mode)
+        //Should never change v v v
+        .image_array_layers(1)
+        .pre_transform(surface_capabilities.current_transform)
+        .composite_alpha(vk::CompositeAlphaFlagBitsKHR::OPAQUE_KHR)
+        .clipped(true)
+        //Might change depending on use case v v v
+        .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT);
+    
+    if queue_family_indices[GRAPHICS_Q_IDX] != queue_family_indices[PRESENT_Q_IDX] {
+        swapchain_info = swapchain_info.image_sharing_mode(vk::SharingMode::CONCURRENT).queue_family_indices(&queue_family_indices);
+    } else {
+        swapchain_info = swapchain_info.image_sharing_mode(vk::SharingMode::EXCLUSIVE);
+    }
+    let swapchain = unsafe {logical_device.create_swapchain_khr(&swapchain_info, None)}.expect("Could not create swapchain!");
+
+    (swapchain, surface_format.format, swap_extent)
 }

@@ -165,37 +165,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     let present_queue = unsafe {logical_device.get_device_queue(queue_family_indices[PRESENT_Q_IDX], 0)};
 
     //// Creating swapchain
-    let (swapchain, image_format, swapchain_extent) = {
-        let (surface_capabilities, formats, present_modes) = engine_core::phys_device::query_swap_chain_support(&instance, &physical_device, &surface);
-        let surface_format = engine_core::swapchain::choose_swap_surface_format(&formats);
-        let present_mode = engine_core::swapchain::choose_swap_present_mode(&present_modes, vk::PresentModeKHR::MAILBOX_KHR);
-        let swap_extent = engine_core::swapchain::choose_swap_extent(&window, &surface_capabilities);
-        let image_count = {
-            let mut count = surface_capabilities.min_image_count + 1;
-            if surface_capabilities.min_image_count > 0 && count > surface_capabilities.max_image_count {count = surface_capabilities.max_image_count}
-            count
-        };
-        let mut swapchain_info = vk::SwapchainCreateInfoKHRBuilder::new()
-            .surface(surface)
-            .min_image_count(image_count)
-            .image_format(surface_format.format)
-            .image_color_space(surface_format.color_space)
-            .image_extent(swap_extent)
-            .image_array_layers(1)
-            .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
-            .composite_alpha(vk::CompositeAlphaFlagBitsKHR::OPAQUE_KHR)
-            .pre_transform(surface_capabilities.current_transform)
-            .present_mode(present_mode)
-            .clipped(true);
-        if queue_family_indices[GRAPHICS_Q_IDX] != queue_family_indices[PRESENT_Q_IDX] {
-            swapchain_info = swapchain_info.image_sharing_mode(vk::SharingMode::CONCURRENT).queue_family_indices(&queue_family_indices);
-        } else {
-            swapchain_info = swapchain_info.image_sharing_mode(vk::SharingMode::EXCLUSIVE);
-        }
-        let swapchain = unsafe {logical_device.create_swapchain_khr(&swapchain_info, None)}.expect("Could not create swapchain!");
-
-        (swapchain, surface_format.format, swap_extent)
-    };
+    let (swapchain, image_format, swapchain_extent) = engine_core::create_swapchain(&instance, &window, &surface, &physical_device, &logical_device, queue_family_indices);
     let swapchain_images = unsafe {logical_device.get_swapchain_images_khr(swapchain, None)}.unwrap();
 
     //// Image views
