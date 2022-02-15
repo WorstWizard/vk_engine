@@ -1,4 +1,5 @@
 mod engine_core;
+mod engine_shaders;
 
 use winit::window::{Window, WindowBuilder};
 use winit::event_loop::{EventLoop};
@@ -6,8 +7,7 @@ use winit::event_loop::{EventLoop};
 use erupt::{vk, {EntryLoader, InstanceLoader, DeviceLoader}, {ExtendableFrom, SmallVec}, utils::{surface}};
 
 use std::ffi::{CString};
-use std::os::raw::{c_char, c_void};
-use std::collections::HashSet;
+use std::os::raw::{c_void};
 use std::mem::size_of;
 
 use engine_core::{VALIDATION_ENABLED, VALIDATION_LAYERS};
@@ -51,7 +51,7 @@ pub struct VulkanApp { //Members dropped in declared order. So they must be plac
     pub present_queue: vk::Queue,
     pub device: Box<DeviceLoader>,
     pub surface: vk::SurfaceKHR,
-    pub messenger: vk::DebugUtilsMessengerEXT,
+    _messenger: vk::DebugUtilsMessengerEXT,
     pub instance: Box<InstanceLoader>,
     _entry: Box<EntryLoader>,
 }
@@ -75,13 +75,13 @@ impl Drop for VulkanApp {
                 self.device.destroy_image_view(*view, None);
             }
             self.device.destroy_device(None);
-            if !self.messenger.is_null() {
-                self.instance.destroy_debug_utils_messenger_ext(self.messenger, None)
+            if !self._messenger.is_null() {
+                self.instance.destroy_debug_utils_messenger_ext(self._messenger, None)
             }
             self.instance.destroy_surface_khr(self.surface, None);
             self.instance.destroy_instance(None);
         }
-        println!("VulkanApp dropped succesfully");
+        eprintln!("Engine stopped succesfully");
     }
 }
 pub fn init_vulkan(window: &Window) -> VulkanApp {
@@ -107,7 +107,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
         instance_extensions.push(vk::EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
-    //// Instance info & debug messenger
+    //// Instance & debug messenger
     let mut messenger_info = init_debug_messenger_info();
     let mut instance_info = vk::InstanceCreateInfoBuilder::new()
         .application_info(&app_info)
@@ -117,11 +117,8 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
             .enabled_layer_names(&VALIDATION_LAYERS)
             .extend_from(&mut messenger_info);
     }
-    
-    //// Instance created
     let instance = Box::new(unsafe {InstanceLoader::new(&entry, &instance_info)}.expect("Failed to create Vulkan instance!"));
-    // Messenger attached
-    let messenger = if VALIDATION_ENABLED {
+    let _messenger = if VALIDATION_ENABLED { //Messenger attached
         unsafe {instance.create_debug_utils_messenger_ext(&messenger_info, None)}.unwrap()
     } else {
         vk::DebugUtilsMessengerEXT::default()
@@ -131,66 +128,18 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     let surface = unsafe { surface::create_surface(&instance, &window, None) }.unwrap();
 
     //// Physical device and queues
-    const DEVICE_EXTS: [*const c_char; 1] = engine_core::DEVICE_EXTS;
-    const GRAPHICS_Q_IDX: usize = engine_core::GRAPHICS_Q_IDX;
-    const PRESENT_Q_IDX: usize = engine_core::PRESENT_Q_IDX;
-    let (physical_device, queue_family_indices) = {
-        //Picking device
-        let physical_device = engine_core::find_physical_device(&instance, &surface);
-        let queue_family_indices = engine_core::phys_device::find_queue_families(&instance, &surface, &physical_device).unwrap();
-        
-        (physical_device, queue_family_indices)
-    };
+    let (physical_device, queue_family_indices) = engine_core::find_physical_device(&instance, &surface);
 
     //// Logical device
-    let unique_queue_family_indices: Vec<u32> = HashSet::from(queue_family_indices.clone()).into_iter().collect();
-    let device_queue_infos: &[vk::DeviceQueueCreateInfoBuilder] = &unique_queue_family_indices.into_iter().map(|index| {
-        vk::DeviceQueueCreateInfoBuilder::new()
-        .queue_family_index(index)
-        .queue_priorities(&[1.0])
-    }).collect::<Vec<vk::DeviceQueueCreateInfoBuilder>>().into_boxed_slice();
-    
-    let device_features = vk::PhysicalDeviceFeatures::default();
-    let mut device_create_info = vk::DeviceCreateInfoBuilder::new()
-        .queue_create_infos(device_queue_infos)
-        .enabled_features(&device_features)
-        .enabled_extension_names(&DEVICE_EXTS);
-    if VALIDATION_ENABLED {
-        device_create_info = device_create_info.enabled_layer_names(&VALIDATION_LAYERS);
-    }
-    let logical_device = Box::new(unsafe {DeviceLoader::new(&instance, physical_device, &device_create_info)}.expect("Failed to create logical device!"));
+    let logical_device = engine_core::create_logical_device(&instance, &physical_device, queue_family_indices);
+    let (graphics_queue, present_queue) = engine_core::get_queue_handles(&logical_device, queue_family_indices);
 
-    //// Queue handles
-    let graphics_queue = unsafe {logical_device.get_device_queue(queue_family_indices[GRAPHICS_Q_IDX], 0)};
-    let present_queue = unsafe {logical_device.get_device_queue(queue_family_indices[PRESENT_Q_IDX], 0)};
-
-    //// Creating swapchain
-    let (swapchain, image_format, swapchain_extent) = engine_core::create_swapchain(&instance, &window, &surface, &physical_device, &logical_device, queue_family_indices);
-    let swapchain_images = unsafe {logical_device.get_swapchain_images_khr(swapchain, None)}.unwrap();
+    //// Swapchain
+    let (swapchain, image_format, swapchain_extent, swapchain_images) =
+    engine_core::create_swapchain(&instance, &window, &surface, &physical_device, &logical_device, queue_family_indices);
 
     //// Image views
-    let mut image_views = Vec::new();
-    for i in 0..swapchain_images.len() {
-        let image_view_info = vk::ImageViewCreateInfoBuilder::new()
-            .image(swapchain_images[i])
-            .view_type(vk::ImageViewType::_2D)
-            .format(image_format)
-            .components(vk::ComponentMapping{
-                r: vk::ComponentSwizzle::IDENTITY,
-                g: vk::ComponentSwizzle::IDENTITY,
-                b: vk::ComponentSwizzle::IDENTITY,
-                a: vk::ComponentSwizzle::IDENTITY,
-            }).
-            subresource_range(vk::ImageSubresourceRange{
-                aspect_mask: vk::ImageAspectFlags::COLOR,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1,
-            });
-        let image_view = unsafe {logical_device.create_image_view(&image_view_info, None)}.unwrap();
-        image_views.push(image_view);
-    }
+    let image_views = engine_core::create_image_views(&logical_device, &swapchain_images, image_format);
 
     //// Push constants
     let push_constants = [1.0];
@@ -344,7 +293,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
 
     //// Command pool and buffers
     let command_pool_info = vk::CommandPoolCreateInfoBuilder::new()
-        .queue_family_index(queue_family_indices[GRAPHICS_Q_IDX]);
+        .queue_family_index(queue_family_indices[engine_core::GRAPHICS_Q_IDX]);
     let command_pool = unsafe {logical_device.create_command_pool(&command_pool_info, None)}.expect("Could not create command pool!");
 
     let command_buffers = allocate_and_record_command_buffers(
@@ -379,7 +328,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
         _entry: entry,
         instance,
         device: logical_device,
-        messenger,
+        _messenger,
         surface,
         graphics_queue,
         present_queue,

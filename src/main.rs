@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Required to prevent console window from appearing on Windows
+
 use vk_engine::*;
 use std::time;
 use erupt::vk;
