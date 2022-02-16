@@ -180,7 +180,8 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
 
         let entry_point = CString::new("main").unwrap();
         // Shader modules
-        let vert_decoded = erupt::utils::decode_spv(VERT_SHADER).unwrap();
+        let vert_shader = engine_shaders::load_or_compile_shader("shaders_compiled/man_vert.spv", "shaders/mandelbrot.vert", shaderc::ShaderKind::Vertex).unwrap();
+        let vert_decoded = erupt::utils::decode_spv(&vert_shader.into_boxed_slice()).unwrap();
         let vert_shader_module_info = vk::ShaderModuleCreateInfoBuilder::new().code(&vert_decoded);
         let vert_shader_module = unsafe {logical_device.create_shader_module(&vert_shader_module_info, None)}.unwrap();
         let vert_stage_info = vk::PipelineShaderStageCreateInfoBuilder::new()
@@ -188,7 +189,8 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
             .module(vert_shader_module)
             .name(&entry_point);
 
-        let frag_decoded = erupt::utils::decode_spv(FRAG_SHADER).unwrap();
+        let frag_shader = engine_shaders::load_or_compile_shader("shaders_compiled/man_frag.spv", "shaders/mandelbrot.frag", shaderc::ShaderKind::Fragment).unwrap();
+        let frag_decoded = erupt::utils::decode_spv(&frag_shader.into_boxed_slice()).unwrap();
         let frag_shader_module_info = vk::ShaderModuleCreateInfoBuilder::new().code(&frag_decoded);
         let frag_shader_module = unsafe {logical_device.create_shader_module(&frag_shader_module_info, None)}.unwrap();
         let frag_stage_info = vk::PipelineShaderStageCreateInfoBuilder::new()

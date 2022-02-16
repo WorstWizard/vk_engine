@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 winit = "0.26"
 erupt = "0.22"
+shaderc = "0.7"
