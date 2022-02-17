@@ -1,5 +1,4 @@
 mod engine_core;
-mod engine_shaders;
 
 use winit::window::{Window, WindowBuilder};
 use winit::event_loop::{EventLoop};
@@ -15,11 +14,6 @@ use engine_core::{VALIDATION_ENABLED, VALIDATION_LAYERS};
 const HEIGHT: u32 = 800;
 const WIDTH: u32 = 800;
 const APP_TITLE: &str = "VK Engine by KK";
-
-
-// Shaders
-const VERT_SHADER: &[u8] = include_bytes!("man_vert.spv");
-const FRAG_SHADER: &[u8] = include_bytes!("man_frag.spv");
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
@@ -41,7 +35,7 @@ pub struct VulkanApp { //Members dropped in declared order. So they must be plac
     pub command_buffers: SmallVec<vk::CommandBuffer>,
     pub command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
-    pub renderpass: vk::RenderPass,
+    pub render_pass: vk::RenderPass,
     pub graphics_pipeline_layout: vk::PipelineLayout,
     pub graphics_pipeline: vk::Pipeline,
     pub image_views: Vec<vk::ImageView>,
@@ -70,7 +64,7 @@ impl Drop for VulkanApp {
             }
             self.device.destroy_pipeline(self.graphics_pipeline, None);
             self.device.destroy_pipeline_layout(self.graphics_pipeline_layout, None);
-            self.device.destroy_render_pass(self.renderpass, None);
+            self.device.destroy_render_pass(self.render_pass, None);
             for view in &mut self.image_views {
                 self.device.destroy_image_view(*view, None);
             }
@@ -81,7 +75,7 @@ impl Drop for VulkanApp {
             self.instance.destroy_surface_khr(self.surface, None);
             self.instance.destroy_instance(None);
         }
-        eprintln!("Engine stopped succesfully");
+        eprintln!("Engine stopped successfully");
     }
 }
 pub fn init_vulkan(window: &Window) -> VulkanApp {
@@ -145,137 +139,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     let push_constants = [1.0];
 
     //// Graphics pipeline
-    let (graphics_pipeline, graphics_pipeline_layout, renderpass) = {
-        // Render pass
-        let color_attachments = [vk::AttachmentDescriptionBuilder::new()
-            .format(image_format)
-            .samples(vk::SampleCountFlagBits::_1)
-            .load_op(vk::AttachmentLoadOp::CLEAR)
-            .store_op(vk::AttachmentStoreOp::STORE)
-            .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
-            .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
-            .initial_layout(vk::ImageLayout::UNDEFINED)
-            .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)];
-        // Subpass
-        let dependencies = [vk::SubpassDependencyBuilder::new()
-            .src_subpass(vk::SUBPASS_EXTERNAL)
-            .dst_subpass(0)
-            .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
-            .src_access_mask(vk::AccessFlags::empty())
-            .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
-            .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE)];
-        let color_attachment_refs = [vk::AttachmentReferenceBuilder::new()
-            .attachment(0) //First attachment in array -> color_attachment
-            .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)];
-        let subpasses = [vk::SubpassDescriptionBuilder::new()
-            .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
-            .color_attachments(&color_attachment_refs)];
-        
-        let renderpass_info = vk::RenderPassCreateInfoBuilder::new()
-            .attachments(&color_attachments)
-            .subpasses(&subpasses)
-            .dependencies(&dependencies);
-        let renderpass = unsafe {logical_device.create_render_pass(&renderpass_info, None)}.expect("Failed to create renderpass!");
-
-
-        let entry_point = CString::new("main").unwrap();
-        // Shader modules
-        let vert_shader = engine_shaders::load_or_compile_shader("shaders_compiled/man_vert.spv", "shaders/mandelbrot.vert", shaderc::ShaderKind::Vertex).unwrap();
-        let vert_decoded = erupt::utils::decode_spv(&vert_shader.into_boxed_slice()).unwrap();
-        let vert_shader_module_info = vk::ShaderModuleCreateInfoBuilder::new().code(&vert_decoded);
-        let vert_shader_module = unsafe {logical_device.create_shader_module(&vert_shader_module_info, None)}.unwrap();
-        let vert_stage_info = vk::PipelineShaderStageCreateInfoBuilder::new()
-            .stage(vk::ShaderStageFlagBits::VERTEX)
-            .module(vert_shader_module)
-            .name(&entry_point);
-
-        let frag_shader = engine_shaders::load_or_compile_shader("shaders_compiled/man_frag.spv", "shaders/mandelbrot.frag", shaderc::ShaderKind::Fragment).unwrap();
-        let frag_decoded = erupt::utils::decode_spv(&frag_shader.into_boxed_slice()).unwrap();
-        let frag_shader_module_info = vk::ShaderModuleCreateInfoBuilder::new().code(&frag_decoded);
-        let frag_shader_module = unsafe {logical_device.create_shader_module(&frag_shader_module_info, None)}.unwrap();
-        let frag_stage_info = vk::PipelineShaderStageCreateInfoBuilder::new()
-            .stage(vk::ShaderStageFlagBits::FRAGMENT)
-            .module(frag_shader_module)
-            .name(&entry_point);
-        
-        let shader_stages = [vert_stage_info, frag_stage_info];
-
-        // Vertex input settings (since vertices are hard-coded in the shader for now, ít is specified to take no input)
-        let pipeline_vertex_input_state_info = vk::PipelineVertexInputStateCreateInfoBuilder::new();
-        // Input assembly settings
-        let pipeline_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfoBuilder::new()
-            .topology(vk::PrimitiveTopology::TRIANGLE_STRIP)
-            .primitive_restart_enable(false);
-        // Viewport settings
-        let viewports = [vk::ViewportBuilder::new()
-            .x(0.0)
-            .y(0.0)
-            .width(swapchain_extent.width as f32)
-            .height(swapchain_extent.height as f32)
-            .min_depth(0.0)
-            .max_depth(1.0)];
-        let scissor_rects = [vk::Rect2DBuilder::new()
-            .offset(vk::Offset2D{x: 0, y: 0})
-            .extent(swapchain_extent)];
-        let pipeline_viewport_state_info = vk::PipelineViewportStateCreateInfoBuilder::new()
-            .viewports(&viewports)
-            .scissors(&scissor_rects);
-        // Rasterizer settings
-        let pipeline_rasterization_state_info = vk::PipelineRasterizationStateCreateInfoBuilder::new()
-            .depth_clamp_enable(false)
-            .rasterizer_discard_enable(false)
-            .polygon_mode(vk::PolygonMode::FILL)
-            .line_width(1.0)
-            .cull_mode(vk::CullModeFlags::BACK)
-            .front_face(vk::FrontFace::CLOCKWISE)
-            .depth_bias_enable(false);
-        // Multisampling settings
-        let pipeline_multisample_state_info = vk::PipelineMultisampleStateCreateInfoBuilder::new()
-            .sample_shading_enable(false)
-            .rasterization_samples(vk::SampleCountFlagBits::_1);
-        // Color blending settings
-        let pipeline_color_blend_attachment_states = [vk::PipelineColorBlendAttachmentStateBuilder::new()
-            .color_write_mask(
-                vk::ColorComponentFlags::R |
-                vk::ColorComponentFlags::G |
-                vk::ColorComponentFlags::B |
-                vk::ColorComponentFlags::A)
-            .blend_enable(false)];
-        let pipeline_color_blend_state_info = vk::PipelineColorBlendStateCreateInfoBuilder::new()
-            .logic_op_enable(false)
-            .attachments(&pipeline_color_blend_attachment_states);
-        
-        // Pipeline layout
-        let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
-            .stage_flags(vk::ShaderStageFlags::VERTEX)
-            .offset(0)
-            .size((push_constants.len()*size_of::<f32>()) as u32)];
-        let pipeline_layout_info = vk::PipelineLayoutCreateInfoBuilder::new()
-            .push_constant_ranges(&push_constant_ranges);
-        let pipeline_layout = unsafe {logical_device.create_pipeline_layout(&pipeline_layout_info, None)}.unwrap();
-        
-        let graphics_pipeline_infos = [vk::GraphicsPipelineCreateInfoBuilder::new()
-            .stages(&shader_stages)
-            .vertex_input_state(&pipeline_vertex_input_state_info)
-            .input_assembly_state(&pipeline_input_assembly_state_info)
-            .viewport_state(&pipeline_viewport_state_info)
-            .rasterization_state(&pipeline_rasterization_state_info)
-            .multisample_state(&pipeline_multisample_state_info)
-            .color_blend_state(&pipeline_color_blend_state_info)
-            .layout(pipeline_layout)
-            .render_pass(renderpass)
-            .subpass(0)];
-        let graphics_pipeline = unsafe {logical_device.create_graphics_pipelines(vk::PipelineCache::null(), &graphics_pipeline_infos, None)}.unwrap()[0];
-
-        //Once the graphics pipeline has been created, the SPIR-V bytecode is compiled into the pipeline itself
-        //The shader modules can therefore be destroyed already
-        unsafe {
-            logical_device.destroy_shader_module(vert_shader_module, None);
-            logical_device.destroy_shader_module(frag_shader_module, None);
-        }
-
-        (graphics_pipeline, pipeline_layout, renderpass)
-    };
+    let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&logical_device, swapchain_extent, image_format, push_constants);
 
     //// Framebuffers
     let mut swapchain_framebuffers = Vec::new();
@@ -283,7 +147,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
         let attachments = [image_views[i]];
 
         let framebuffer_info = vk::FramebufferCreateInfoBuilder::new()
-            .render_pass(renderpass)
+            .render_pass(render_pass)
             .attachments(&attachments)
             .width(swapchain_extent.width)
             .height(swapchain_extent.height)
@@ -304,7 +168,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
         &logical_device,
         swapchain_extent,
         &swapchain_framebuffers,
-        renderpass,
+        render_pass,
         graphics_pipeline,
         graphics_pipeline_layout,
         &push_constants
@@ -339,7 +203,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
         image_views,
         graphics_pipeline,
         graphics_pipeline_layout,
-        renderpass,
+        render_pass,
         framebuffers: swapchain_framebuffers,
         command_pool,
         command_buffers,

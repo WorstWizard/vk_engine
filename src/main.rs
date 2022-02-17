@@ -80,7 +80,7 @@ fn main() {
                         &vulkan_app.device,
                         vulkan_app.swapchain_extent,
                         &vulkan_app.framebuffers,
-                        vulkan_app.renderpass,
+                        vulkan_app.render_pass,
                         vulkan_app.graphics_pipeline,
                         vulkan_app.graphics_pipeline_layout,
                         &push_constants

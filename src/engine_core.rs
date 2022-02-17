@@ -7,6 +7,8 @@ use erupt::cstr;
 
 mod phys_device;
 mod swapchain;
+mod pipeline;
+mod shaders;
 
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
 #[cfg(debug_assertions)]
@@ -157,4 +159,22 @@ pub fn create_image_views(logical_device: &DeviceLoader, swapchain_images: &erup
         image_views.push(image_view);
     }
     image_views
+}
+
+pub fn create_graphics_pipeline(logical_device: &DeviceLoader, swapchain_extent: vk::Extent2D, image_format: vk::Format, push_constants: [f32; 1]) -> (vk::Pipeline, vk::PipelineLayout, vk::RenderPass) {
+    // Shader modules
+    let (vert_shader_module, vert_stage_info) = pipeline::create_shader_module(
+        logical_device,
+        shaders::load_shader("shaders_compiled/man_vert.spv", shaders::ShaderType::Vertex).unwrap()
+    );
+    let (frag_shader_module, frag_stage_info) = pipeline::create_shader_module(
+        logical_device,
+        shaders::load_shader("shaders_compiled/man_frag.spv", shaders::ShaderType::Fragment).unwrap()
+    );
+    let shader_modules = vec![(vert_shader_module, vert_stage_info), (frag_shader_module, frag_stage_info)];
+
+    let render_pass = pipeline::create_render_pass(logical_device, image_format);
+
+    let pipeline = pipeline::default_pipeline(logical_device, render_pass, swapchain_extent, shader_modules, push_constants);
+    (pipeline.0, pipeline.1, render_pass)
 }
