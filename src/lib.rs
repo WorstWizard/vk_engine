@@ -142,20 +142,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&logical_device, swapchain_extent, image_format, push_constants);
 
     //// Framebuffers
-    let mut swapchain_framebuffers = Vec::new();
-    for i in 0..image_views.len() {
-        let attachments = [image_views[i]];
-
-        let framebuffer_info = vk::FramebufferCreateInfoBuilder::new()
-            .render_pass(render_pass)
-            .attachments(&attachments)
-            .width(swapchain_extent.width)
-            .height(swapchain_extent.height)
-            .layers(1);
-
-        let framebuffer = unsafe {logical_device.create_framebuffer(&framebuffer_info, None)}.expect("Could not create framebuffer!");
-        swapchain_framebuffers.push(framebuffer);
-    }
+    let swapchain_framebuffers = engine_core::create_framebuffers(&logical_device, render_pass, swapchain_extent, &image_views);
 
     //// Command pool and buffers
     let command_pool_info = vk::CommandPoolCreateInfoBuilder::new()

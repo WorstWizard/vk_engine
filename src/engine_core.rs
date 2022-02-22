@@ -178,3 +178,21 @@ pub fn create_graphics_pipeline(logical_device: &DeviceLoader, swapchain_extent:
     let pipeline = pipeline::default_pipeline(logical_device, render_pass, swapchain_extent, shader_modules, push_constants);
     (pipeline.0, pipeline.1, render_pass)
 }
+
+pub fn create_framebuffers(logical_device: &DeviceLoader, render_pass: vk::RenderPass, swapchain_extent: vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
+    let mut swapchain_framebuffers = Vec::new();
+    for i in 0..image_views.len() {
+        let attachments = [image_views[i]];
+
+        let framebuffer_info = vk::FramebufferCreateInfoBuilder::new()
+            .render_pass(render_pass)
+            .attachments(&attachments)
+            .width(swapchain_extent.width)
+            .height(swapchain_extent.height)
+            .layers(1);
+
+        let framebuffer = unsafe {logical_device.create_framebuffer(&framebuffer_info, None)}.expect("Could not create framebuffer!");
+        swapchain_framebuffers.push(framebuffer);
+    }
+    swapchain_framebuffers
+}
