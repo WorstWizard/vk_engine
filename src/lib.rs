@@ -97,7 +97,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     }
 
     //// Instance & debug messenger
-    let mut messenger_info = init_debug_messenger_info();
+    let mut messenger_info = engine_core::init_debug_messenger_info();
     let mut instance_info = vk::InstanceCreateInfoBuilder::new()
         .application_info(&app_info)
         .enabled_extension_names(&instance_extensions);
@@ -180,28 +180,14 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     }
 }
 
-fn init_debug_messenger_info() -> vk::DebugUtilsMessengerCreateInfoEXTBuilder<'static> {
-    let messenger_info = vk::DebugUtilsMessengerCreateInfoEXTBuilder::new()
-    .message_severity(
-        //vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE_EXT |
-        vk::DebugUtilsMessageSeverityFlagsEXT::WARNING_EXT |
-        vk::DebugUtilsMessageSeverityFlagsEXT::ERROR_EXT
-    )
-    .message_type(
-        vk::DebugUtilsMessageTypeFlagsEXT::GENERAL_EXT |
-        vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION_EXT |
-        vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE_EXT
-    )
-    .pfn_user_callback(Some(engine_core::debug_callback));
-    messenger_info
-}
+
 
 pub fn allocate_and_record_command_buffers(
     amount: u32,
     command_pool: vk::CommandPool,
     logical_device: &DeviceLoader,
     swapchain_extent: vk::Extent2D,
-    swapchain_framebuffers: &Vec<vk::Framebuffer>,
+    framebuffers: &Vec<vk::Framebuffer>,
     renderpass: vk::RenderPass,
     graphics_pipeline: vk::Pipeline,
     graphics_pipeline_layout: vk::PipelineLayout,
@@ -217,30 +203,28 @@ pub fn allocate_and_record_command_buffers(
     for i in 0..command_buffers.len() {
         //Begin recording command buffer
         let command_buffer_begin_info = vk::CommandBufferBeginInfoBuilder::new();
-        unsafe {logical_device.begin_command_buffer(command_buffers[i], &command_buffer_begin_info)}.expect("Could not begin command buffer recording!");
-
-        //Start render pass
-        let render_area = vk::Rect2DBuilder::new()
-            .offset(vk::Offset2D{x: 0, y: 0})
-            .extent(swapchain_extent);
-        let mut clear_color = [vk::ClearValue::default()]; clear_color[0].color.float32 = [0.0, 0.0, 0.0, 1.0];
-        let renderpass_begin_info = vk::RenderPassBeginInfoBuilder::new()
-            .render_pass(renderpass)
-            .framebuffer(swapchain_framebuffers[i])
-            .render_area(*render_area)
-            .clear_values(&clear_color);
-        unsafe {logical_device.cmd_begin_render_pass(command_buffers[i], &renderpass_begin_info, vk::SubpassContents::INLINE)};
-
-        //Drawing commands
         unsafe {
+            logical_device.begin_command_buffer(command_buffers[i], &command_buffer_begin_info).expect("Could not begin command buffer recording!");
+
+            //Start render pass
+            let render_area = vk::Rect2DBuilder::new()
+                .offset(vk::Offset2D{x: 0, y: 0})
+                .extent(swapchain_extent);
+            let mut clear_color = [vk::ClearValue::default()]; clear_color[0].color.float32 = [0.0, 0.0, 0.0, 1.0];
+            let renderpass_begin_info = vk::RenderPassBeginInfoBuilder::new()
+                .render_pass(renderpass)
+                .framebuffer(framebuffers[i])
+                .render_area(*render_area)
+                .clear_values(&clear_color);
+            logical_device.cmd_begin_render_pass(command_buffers[i], &renderpass_begin_info, vk::SubpassContents::INLINE);
+
+            //Drawing commands
             logical_device.cmd_bind_pipeline(command_buffers[i], vk::PipelineBindPoint::GRAPHICS, graphics_pipeline);
-            logical_device.cmd_push_constants(command_buffers[i], graphics_pipeline_layout, vk::ShaderStageFlags::VERTEX,0, (push_constants.len()*size_of::<f32>()) as u32, push_constants.as_ptr() as *const c_void);
+            logical_device.cmd_push_constants(command_buffers[i], graphics_pipeline_layout, vk::ShaderStageFlags::VERTEX, 0, (push_constants.len()*size_of::<f32>()) as u32, push_constants.as_ptr() as *const c_void);
             logical_device.cmd_draw(command_buffers[i], 4, 1, 0, 0);
             //In order: vertexCount, instanceCount, firstVertex, firstInstance
-        }
 
-        //End the render pass and end recording
-        unsafe {
+            //End the render pass and end recording
             logical_device.cmd_end_render_pass(command_buffers[i]);    
             logical_device.end_command_buffer(command_buffers[i]).expect("Failed recording command buffer!");
         }

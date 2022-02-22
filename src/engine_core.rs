@@ -21,7 +21,22 @@ pub const GRAPHICS_Q_IDX: usize = 0;
 pub const PRESENT_Q_IDX: usize = 1;
 pub const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
-pub unsafe extern "system" fn debug_callback(
+pub fn init_debug_messenger_info() -> vk::DebugUtilsMessengerCreateInfoEXTBuilder<'static> {
+    let messenger_info = vk::DebugUtilsMessengerCreateInfoEXTBuilder::new()
+    .message_severity(
+        //vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE_EXT |
+        vk::DebugUtilsMessageSeverityFlagsEXT::WARNING_EXT |
+        vk::DebugUtilsMessageSeverityFlagsEXT::ERROR_EXT
+    )
+    .message_type(
+        vk::DebugUtilsMessageTypeFlagsEXT::GENERAL_EXT |
+        vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION_EXT |
+        vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE_EXT
+    )
+    .pfn_user_callback(Some(debug_callback));
+    messenger_info
+}
+unsafe extern "system" fn debug_callback(
     _message_severity: vk::DebugUtilsMessageSeverityFlagBitsEXT,
     _message_type: vk::DebugUtilsMessageTypeFlagsEXT,
     p_callback_data: *const vk::DebugUtilsMessengerCallbackDataEXT,
