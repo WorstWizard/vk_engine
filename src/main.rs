@@ -46,26 +46,22 @@ fn main() {
                 //If drawing continously, put rendering code here directly
 
 
-                let wait_fences = [vulkan_app.in_flight_fences[current_frame]];
-                unsafe {vulkan_app.device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
+                //Wait for this frame's command buffer to finish execution (image presented)
+                let wait_fences = [vulkan_app.sync.in_flight[current_frame]];
+                unsafe {
+                    vulkan_app.device.wait_for_fences(&wait_fences, true, u64::MAX).unwrap();
+                    vulkan_app.device.reset_fences(&wait_fences).unwrap(); //Reset the corresponding fence
+                }
 
                 // Acquire index of image from the swapchain, signal semaphore once finished
                 let image_index = unsafe {
                     vulkan_app.device.acquire_next_image_khr(
                         vulkan_app.swapchain,
                         u64::MAX,
-                        vulkan_app.image_available_sems[current_frame],
+                        vulkan_app.sync.image_available[current_frame],
                         vk::Fence::null()
                     ).unwrap()
                 };
-
-                // Is the requested image already in-flight? Then wait for it to finish
-                if !vulkan_app.images_in_flight[image_index as usize].is_null() {
-                    let wait_fences = [vulkan_app.images_in_flight[image_index as usize]];
-                    unsafe {vulkan_app.device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
-                }
-                // The image is now being used by this frame
-                vulkan_app.images_in_flight[image_index as usize] = vulkan_app.in_flight_fences[current_frame];
 
                 //Reallocate to get the new push constants in, lazy mans method
                 if zooming {
@@ -87,9 +83,9 @@ fn main() {
                     );    
                 }
 
-                let wait_sems = [vulkan_app.image_available_sems[current_frame]];
+                let wait_sems = [vulkan_app.sync.image_available[current_frame]];
                 let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-                let signal_sems = [vulkan_app.render_finished_sems[current_frame]];
+                let signal_sems = [vulkan_app.sync.render_finished[current_frame]];
                 let cmd_buffers = [vulkan_app.command_buffers[image_index as usize]];
                 let submits = [vk::SubmitInfoBuilder::new()
                     .wait_semaphores(&wait_sems)
@@ -97,8 +93,7 @@ fn main() {
                     .command_buffers(&cmd_buffers)
                     .signal_semaphores(&signal_sems)];
                 unsafe {
-                    vulkan_app.device.reset_fences(&wait_fences).unwrap();
-                    vulkan_app.device.queue_submit(vulkan_app.graphics_queue, &submits, vulkan_app.in_flight_fences[current_frame]).expect("Queue submission failed!");
+                    vulkan_app.device.queue_submit(vulkan_app.graphics_queue, &submits, vulkan_app.sync.in_flight[current_frame]).expect("Queue submission failed!");
                 }
 
                 // Present rendered image to the swap chain such that it will show up on screen

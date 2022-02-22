@@ -9,13 +9,12 @@ use std::ffi::{CString};
 use std::os::raw::{c_void};
 use std::mem::size_of;
 
-use engine_core::{VALIDATION_ENABLED, VALIDATION_LAYERS};
+use engine_core::{VALIDATION_ENABLED, VALIDATION_LAYERS, MAX_FRAMES_IN_FLIGHT};
 
 const HEIGHT: u32 = 800;
 const WIDTH: u32 = 800;
 const APP_TITLE: &str = "VK Engine by KK";
 
-const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
 pub fn init_window() -> (Window, EventLoop<()>) {
     let event_loop = EventLoop::new();
@@ -28,10 +27,7 @@ pub fn init_window() -> (Window, EventLoop<()>) {
 }
 
 pub struct VulkanApp { //Members dropped in declared order. So they must be placed in opposite order of references
-    pub image_available_sems: SmallVec<vk::Semaphore>,
-    pub render_finished_sems: SmallVec<vk::Semaphore>,
-    pub in_flight_fences: SmallVec<vk::Fence>,
-    pub images_in_flight: SmallVec<vk::Fence>,
+    pub sync: engine_core::SyncPrims,
     pub command_buffers: SmallVec<vk::CommandBuffer>,
     pub command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
@@ -53,10 +49,9 @@ impl Drop for VulkanApp {
     fn drop(&mut self) {
         unsafe {
             for i in 0..MAX_FRAMES_IN_FLIGHT {
-                self.device.destroy_semaphore(self.image_available_sems[i], None);
-                self.device.destroy_semaphore(self.render_finished_sems[i], None);
-                //images_in_flight actually references the same structs, so in_flight_fences being destroyed cleans it up too
-                self.device.destroy_fence(self.in_flight_fences[i], None);
+                self.device.destroy_semaphore(self.sync.image_available[i], None);
+                self.device.destroy_semaphore(self.sync.render_finished[i], None);
+                self.device.destroy_fence(self.sync.in_flight[i], None);
             }
             self.device.destroy_command_pool(self.command_pool, None);
             for buffer in &mut self.framebuffers {
@@ -162,20 +157,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
     );
 
     //// Create semaphores for in-render-pass synchronization
-    let mut image_available_sems = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
-    let mut render_finished_sems = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
-    let mut in_flight_fences = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
-    let mut images_in_flight = SmallVec::with_capacity(swapchain_images.len());
-    unsafe {
-        for _ in 0..MAX_FRAMES_IN_FLIGHT {
-            image_available_sems.push(logical_device.create_semaphore(&vk::SemaphoreCreateInfoBuilder::new(), None).unwrap());
-            render_finished_sems.push(logical_device.create_semaphore(&vk::SemaphoreCreateInfoBuilder::new(), None).unwrap());
-            in_flight_fences.push(logical_device.create_fence(&vk::FenceCreateInfoBuilder::new().flags(vk::FenceCreateFlags::SIGNALED), None).unwrap());
-        }
-        for _ in 0..swapchain_images.len() {
-            images_in_flight.push(vk::Fence::null());
-        }
-    }
+    let sync = engine_core::create_sync_primitives(&logical_device, swapchain_images);
 
     VulkanApp {
         _entry: entry,
@@ -194,10 +176,7 @@ pub fn init_vulkan(window: &Window) -> VulkanApp {
         framebuffers: swapchain_framebuffers,
         command_pool,
         command_buffers,
-        image_available_sems,
-        render_finished_sems,
-        in_flight_fences,
-        images_in_flight,
+        sync,
     }
 }
 

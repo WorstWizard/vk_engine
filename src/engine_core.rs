@@ -2,7 +2,7 @@ use std::ffi::{CStr};
 use std::os::raw::{c_void, c_char};
 use std::collections::HashSet;
 use winit::window::Window;
-use erupt::{vk, EntryLoader, InstanceLoader, DeviceLoader};
+use erupt::{vk, EntryLoader, InstanceLoader, DeviceLoader, SmallVec};
 use erupt::cstr;
 
 mod phys_device;
@@ -19,6 +19,7 @@ pub const VALIDATION_ENABLED: bool = false;
 pub const DEVICE_EXTS: [*const c_char; 1] = [vk::KHR_SWAPCHAIN_EXTENSION_NAME];
 pub const GRAPHICS_Q_IDX: usize = 0;
 pub const PRESENT_Q_IDX: usize = 1;
+pub const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
 pub unsafe extern "system" fn debug_callback(
     _message_severity: vk::DebugUtilsMessageSeverityFlagBitsEXT,
@@ -195,4 +196,25 @@ pub fn create_framebuffers(logical_device: &DeviceLoader, render_pass: vk::Rende
         swapchain_framebuffers.push(framebuffer);
     }
     swapchain_framebuffers
+}
+
+pub struct SyncPrims{
+    pub image_available: SmallVec<vk::Semaphore>,
+    pub render_finished: SmallVec<vk::Semaphore>,
+    pub in_flight: SmallVec<vk::Fence>,
+}
+pub fn create_sync_primitives(logical_device: &DeviceLoader, swapchain_images: SmallVec<vk::Image>)
+-> SyncPrims {
+
+    let mut image_available = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
+    let mut render_finished = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
+    let mut in_flight = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
+    unsafe {
+        for _ in 0..MAX_FRAMES_IN_FLIGHT {
+            image_available.push(logical_device.create_semaphore(&vk::SemaphoreCreateInfoBuilder::new(), None).unwrap());
+            render_finished.push(logical_device.create_semaphore(&vk::SemaphoreCreateInfoBuilder::new(), None).unwrap());
+            in_flight.push(logical_device.create_fence(&vk::FenceCreateInfoBuilder::new().flags(vk::FenceCreateFlags::SIGNALED), None).unwrap());
+        }
+    }
+    SyncPrims{ image_available, render_finished, in_flight }
 }
