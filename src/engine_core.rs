@@ -218,7 +218,7 @@ pub struct SyncPrims{
     pub render_finished: SmallVec<vk::Semaphore>,
     pub in_flight: SmallVec<vk::Fence>,
 }
-pub fn create_sync_primitives(logical_device: &DeviceLoader, swapchain_images: SmallVec<vk::Image>)
+pub fn create_sync_primitives(logical_device: &DeviceLoader)
 -> SyncPrims {
 
     let mut image_available = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);

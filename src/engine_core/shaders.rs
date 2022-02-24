@@ -22,8 +22,6 @@ impl From<ShaderType> for ShaderKind {
     }
 }
 
-
-
 pub fn load_or_compile_shader<P: AsRef<Path>>(shader_path: P, source_path: P, shader_type: ShaderType) -> Result<Shader, &'static str>{
     let load_result = load_shader(&shader_path, shader_type);
     match load_result {

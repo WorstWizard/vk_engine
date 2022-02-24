@@ -141,7 +141,7 @@ impl BaseApp {
         let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, swapchain_framebuffers.len() as u32);
     
         //// Create semaphores for in-render-pass synchronization
-        let sync = engine_core::create_sync_primitives(&logical_device, swapchain_images);
+        let sync = engine_core::create_sync_primitives(&logical_device);
     
         BaseApp {
             _entry: entry,
