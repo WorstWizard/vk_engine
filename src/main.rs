@@ -1,20 +1,27 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Required to prevent console window from appearing on Windows
 
-use vk_engine::*;
+use vk_engine::{BaseApp, init_window};
 use std::time;
 use erupt::vk;
 use winit::event::{Event, WindowEvent, VirtualKeyCode};
 use winit::event_loop::{ControlFlow};
 
-const MAX_FRAMES_IN_FLIGHT: usize = 2;
+const APP_TITLE: &str = "KK Engine Test App";
 
 fn main() {
-    let (window, event_loop) = init_window();
-    let mut vulkan_app = init_vulkan(&window);
+    let (window, event_loop) = init_window(APP_TITLE, 1000, 1000);
+    let mut vulkan_app = BaseApp::initialize_new(&window, APP_TITLE);
+
+    let mut push_constants = [0.0];
+    unsafe {vulkan_app.record_command_buffers(|app, i| {
+        vk_engine::drawing_commands(app, i, |app, i| {
+            app.device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
+        }, &push_constants)
+    })};
+
     let mut current_frame = 0;
     let mut timer = time::Instant::now();
     let speed = 0.1;
-    let mut push_constants = [0.0];
     let mut zooming = true;
 
     //The event loop hijacks the main thread, so once it closes the entire program exits.
@@ -68,21 +75,15 @@ fn main() {
                     let time_delta = timer.elapsed();
                     push_constants[0] = (push_constants[0] + time_delta.as_secs_f32()*speed) % 2.0;//(2.0*3.1415926535);
 
-                    let amount = vulkan_app.command_buffers.len();
-                    unsafe {vulkan_app.device.free_command_buffers(vulkan_app.command_pool, &vulkan_app.command_buffers)};
-                    vulkan_app.command_buffers = allocate_and_record_command_buffers(
-                        amount as u32,
-                        vulkan_app.command_pool,
-                        &vulkan_app.device,
-                        vulkan_app.swapchain_extent,
-                        &vulkan_app.framebuffers,
-                        vulkan_app.render_pass,
-                        vulkan_app.graphics_pipeline,
-                        vulkan_app.graphics_pipeline_layout,
-                        &push_constants
-                    );    
+                    vulkan_app.reallocate_command_buffers();
+                    unsafe {vulkan_app.record_command_buffers(|app, i| {
+                        vk_engine::drawing_commands(app, i, |app, i| {
+                            app.device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
+                        }, &push_constants);
+                    })};
                 }
 
+                // Submit rendered image
                 let wait_sems = [vulkan_app.sync.image_available[current_frame]];
                 let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
                 let signal_sems = [vulkan_app.sync.render_finished[current_frame]];
@@ -100,7 +101,7 @@ fn main() {
                 vulkan_app.present_image(image_index, signal_sems);
                 timer = time::Instant::now(); //Reset timer after frame is presented
 
-                current_frame = current_frame % MAX_FRAMES_IN_FLIGHT;
+                current_frame = current_frame % vk_engine::MAX_FRAMES_IN_FLIGHT;
 
                 //window.request_redraw() //Call if state changed and a redraw is necessary
             },

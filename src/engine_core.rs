@@ -233,3 +233,11 @@ pub fn create_sync_primitives(logical_device: &DeviceLoader, swapchain_images: S
     }
     SyncPrims{ image_available, render_finished, in_flight }
 }
+
+pub fn allocate_command_buffers(logical_device: &DeviceLoader, command_pool: vk::CommandPool, amount: u32) -> SmallVec<vk::CommandBuffer> {
+    let command_buffer_allocate_info = vk::CommandBufferAllocateInfoBuilder::new()
+        .command_pool(command_pool)
+        .level(vk::CommandBufferLevel::PRIMARY)
+        .command_buffer_count(amount);
+    unsafe {logical_device.allocate_command_buffers(&command_buffer_allocate_info)}.expect("Could not create command buffers!")
+}
