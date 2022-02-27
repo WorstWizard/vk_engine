@@ -17,15 +17,15 @@ pub struct BaseApp {
     pub render_pass: vk::RenderPass,
     pub graphics_pipeline_layout: vk::PipelineLayout,
     pub graphics_pipeline: vk::Pipeline,
-    _image_views: Vec<vk::ImageView>,
+    image_views: Vec<vk::ImageView>,
     pub swapchain: vk::SwapchainKHR,
     pub swapchain_extent: vk::Extent2D,
     pub graphics_queue: vk::Queue,
     present_queue: vk::Queue,
     pub device: Box<DeviceLoader>,
-    _surface: vk::SurfaceKHR,
+    surface: vk::SurfaceKHR,
     _messenger: vk::DebugUtilsMessengerEXT,
-    _instance: Box<InstanceLoader>,
+    instance: Box<InstanceLoader>,
     _entry: Box<EntryLoader>,
 }
 impl Drop for BaseApp {
@@ -42,18 +42,13 @@ impl Drop for BaseApp {
             for buffer in &mut self.framebuffers {
                 self.device.destroy_framebuffer(*buffer, None);
             }
-            self.device.destroy_pipeline(self.graphics_pipeline, None);
-            self.device.destroy_pipeline_layout(self.graphics_pipeline_layout, None);
-            self.device.destroy_render_pass(self.render_pass, None);
-            for view in &mut self._image_views {
-                self.device.destroy_image_view(*view, None);
-            }
+            self.clean_swapchain_and_dependants();
             self.device.destroy_device(None);
             if !self._messenger.is_null() {
-                self._instance.destroy_debug_utils_messenger_ext(self._messenger, None)
+                self.instance.destroy_debug_utils_messenger_ext(self._messenger, None)
             }
-            self._instance.destroy_surface_khr(self._surface, None);
-            self._instance.destroy_instance(None);
+            self.instance.destroy_surface_khr(self.surface, None);
+            self.instance.destroy_instance(None);
         }
         eprintln!("Engine stopped successfully");
     }
@@ -124,33 +119,33 @@ impl BaseApp {
         let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&logical_device, swapchain_extent, image_format, push_constants);
     
         //// Framebuffers
-        let swapchain_framebuffers = engine_core::create_framebuffers(&logical_device, render_pass, swapchain_extent, &image_views);
+        let framebuffers = engine_core::create_framebuffers(&logical_device, render_pass, swapchain_extent, &image_views);
     
         //// Command pool and buffers
         let command_pool_info = vk::CommandPoolCreateInfoBuilder::new()
             .queue_family_index(queue_family_indices[engine_core::GRAPHICS_Q_IDX]);
         let command_pool = unsafe {logical_device.create_command_pool(&command_pool_info, None)}.expect("Could not create command pool!");
     
-        let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, swapchain_framebuffers.len() as u32);
+        let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, image_views.len() as u32);
     
         //// Create semaphores for in-render-pass synchronization
         let sync = engine_core::create_sync_primitives(&logical_device);
     
         BaseApp {
             _entry: entry,
-            _instance: instance,
+            instance,
             device: logical_device,
             _messenger,
-            _surface: surface,
+            surface: surface,
             graphics_queue,
             present_queue,
             swapchain,
             swapchain_extent,
-            _image_views: image_views,
+            image_views,
             graphics_pipeline,
             graphics_pipeline_layout,
             render_pass,
-            framebuffers: swapchain_framebuffers,
+            framebuffers,
             command_pool,
             command_buffers,
             sync,
@@ -208,5 +203,33 @@ impl BaseApp {
         unsafe {self.device.queue_present_khr(self.present_queue, &present_info)}.expect("Presenting to queue failed!");
     }
 
-    
+    pub fn recreate_swapchain(&mut self, window: &winit::window::Window, push_constants: &[f32; 1]) {
+        unsafe {
+            self.device.device_wait_idle().unwrap();
+            self.clean_swapchain_and_dependants();
+        }
+
+        let (physical_device, queue_family_indices) = engine_core::find_physical_device(&self.instance, &self.surface);
+        let (swapchain, image_format, swapchain_extent, swapchain_images) =
+        engine_core::create_swapchain(&self.instance, window, &self.surface, &physical_device, &self.device, queue_family_indices);
+        let image_views = engine_core::create_image_views(&self.device, &swapchain_images, image_format);
+        let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&self.device, swapchain_extent, image_format, *push_constants);
+        let framebuffers = engine_core::create_framebuffers(&self.device, render_pass, swapchain_extent, &image_views);
+
+        self.swapchain = swapchain;
+        self.swapchain_extent = swapchain_extent;
+        self.render_pass = render_pass;
+        self.graphics_pipeline = graphics_pipeline;
+        self.graphics_pipeline_layout = graphics_pipeline_layout;
+        self.framebuffers = framebuffers;
+    }
+    unsafe fn clean_swapchain_and_dependants(&mut self) {
+        self.device.destroy_pipeline(self.graphics_pipeline, None);
+        self.device.destroy_pipeline_layout(self.graphics_pipeline_layout, None);
+        self.device.destroy_render_pass(self.render_pass, None);
+        for view in &mut self.image_views {
+            self.device.destroy_image_view(*view, None);
+        }
+        self.device.destroy_swapchain_khr(self.swapchain, None);
+    }
 }
