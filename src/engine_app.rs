@@ -31,6 +31,8 @@ pub struct BaseApp {
 impl Drop for BaseApp {
     fn drop(&mut self) {
         unsafe {
+            self.device.device_wait_idle().unwrap(); //Wait until idle before destroying
+
             for i in 0..MAX_FRAMES_IN_FLIGHT {
                 self.device.destroy_semaphore(self.sync.image_available[i], None);
                 self.device.destroy_semaphore(self.sync.render_finished[i], None);
@@ -205,4 +207,6 @@ impl BaseApp {
             .image_indices(&image_indices);
         unsafe {self.device.queue_present_khr(self.present_queue, &present_info)}.expect("Presenting to queue failed!");
     }
+
+    
 }

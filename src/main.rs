@@ -110,9 +110,6 @@ fn main() {
             },
             Event::LoopDestroyed => {
                 println!("Exiting event loop, should drop application");
-                unsafe {
-                    vulkan_app.device.device_wait_idle().unwrap(); //App referred to in closure, it is dropped once the scope closes
-                }
             }
             _ => ()
         }
