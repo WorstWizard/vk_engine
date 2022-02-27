@@ -22,16 +22,16 @@ pub fn init_window(app_name: &str, width: u32, height: u32) -> (Window, EventLoo
     let window = WindowBuilder::new()
         .with_inner_size( winit::dpi::PhysicalSize::new(width, height))
         .with_title(app_name)
-        .with_resizable(false)
+        .with_resizable(true)
         .build(&event_loop).expect("Window build failed!");
     (window, event_loop)
 }
 
-/// For use inside [`BaseApp::record_command_buffers`]. Will cover most common use cases for drawing:
-/// 1. Sets the render area to the full swapchain extent and sets the (first) clear color to black
-/// 2. Begins a render pass and binds the graphics pipeline to the graphics stage
-/// 3. Runs `commands` closure
-/// 4. Ends render pass
+/** For use inside [`BaseApp::record_command_buffers`]. Will cover most common use cases for drawing:
+1. Sets the render area to the full swapchain extent and sets the (first) clear color to black
+2. Begins a render pass and binds the graphics pipeline to the graphics stage
+3. Runs `commands` closure
+4. Ends render pass **/
 pub unsafe fn drawing_commands<F>(app: &mut BaseApp, index: usize, commands: F, push_constants: &[f32; 1])
     where F: FnOnce(&mut BaseApp, usize)
 {

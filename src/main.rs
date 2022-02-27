@@ -10,7 +10,7 @@ const APP_TITLE: &str = "KK Engine Test App";
 
 fn main() {
     let (window, event_loop) = init_window(APP_TITLE, 1000, 1000);
-    let mut vulkan_app = BaseApp::initialize_new(&window, APP_TITLE);
+    let mut vulkan_app = BaseApp::initialize_new(window, APP_TITLE);
 
     let mut push_constants = [0.0];
     unsafe {vulkan_app.record_command_buffers(|app, i| {
@@ -55,20 +55,18 @@ fn main() {
 
                 //Wait for this frame's command buffer to finish execution (image presented)
                 let wait_fences = [vulkan_app.sync.in_flight[current_frame]];
-                unsafe {
-                    vulkan_app.device.wait_for_fences(&wait_fences, true, u64::MAX).unwrap();
-                    vulkan_app.device.reset_fences(&wait_fences).unwrap(); //Reset the corresponding fence
-                }
-
+                unsafe {vulkan_app.device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
                 // Acquire index of image from the swapchain, signal semaphore once finished
-                let image_index = unsafe {
-                    vulkan_app.device.acquire_next_image_khr(
-                        vulkan_app.swapchain,
-                        u64::MAX,
-                        vulkan_app.sync.image_available[current_frame],
-                        vk::Fence::null()
-                    ).unwrap()
+                let image_index = match vulkan_app.acquire_next_image(current_frame) {
+                    Ok(i) => i,
+                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
+                        vulkan_app.recreate_swapchain();
+                        return
+                    },
+                    _ => panic!("Could not acquire image from swapchain!")
                 };
+                unsafe {vulkan_app.device.reset_fences(&wait_fences)}.unwrap(); //Reset the corresponding fence
+
 
                 //Reallocate to get the new push constants in, lazy mans method
                 if zooming {
@@ -98,12 +96,17 @@ fn main() {
                 }
 
                 // Present rendered image to the swap chain such that it will show up on screen
-                vulkan_app.present_image(image_index, signal_sems);
+                match vulkan_app.present_image(image_index, signal_sems) {
+                    Ok(()) => (),
+                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
+                        vulkan_app.recreate_swapchain();
+                        return
+                    },
+                    _ => panic!("Could not present image!")
+                };
                 timer = time::Instant::now(); //Reset timer after frame is presented
 
                 current_frame = current_frame % vk_engine::engine_core::MAX_FRAMES_IN_FLIGHT;
-
-                //window.request_redraw() //Call if state changed and a redraw is necessary
             },
             Event::RedrawRequested(_) => { //Conditionally redraw (OS might request this too)
 
