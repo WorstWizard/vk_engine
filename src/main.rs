@@ -101,7 +101,7 @@ fn main() {
                 vulkan_app.present_image(image_index, signal_sems);
                 timer = time::Instant::now(); //Reset timer after frame is presented
 
-                current_frame = current_frame % vk_engine::MAX_FRAMES_IN_FLIGHT;
+                current_frame = current_frame % vk_engine::engine_core::MAX_FRAMES_IN_FLIGHT;
 
                 //window.request_redraw() //Call if state changed and a redraw is necessary
             },
