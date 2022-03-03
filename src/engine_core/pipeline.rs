@@ -7,6 +7,8 @@ use super::shaders::{Shader, ShaderType}; //Would like to avoid using super, but
 const DEFAULT_ENTRY: *const c_char = cstr!("main");
 
 
+pub struct Vert(f32, f32);
+
 
 pub fn default_pipeline(
     logical_device: &DeviceLoader,
@@ -16,15 +18,22 @@ pub fn default_pipeline(
     push_constants: [f32; 1],
 ) -> (vk::Pipeline, vk::PipelineLayout) {
 
-
-    struct Vert(f32, f32, f32);
-    let binding_description = vk::VertexInputBindingDescriptionBuilder::new()
+    // This is all terribly bad, but works for now
+    // TODO: Move it outside of this file, and fix the fucking offset being hardcoded, super dangerous if someone tries to extend it
+    let binding_descriptions = [vk::VertexInputBindingDescriptionBuilder::new()
         .binding(0)
         .stride(size_of::<Vert>() as u32)
-        .input_rate(vk::VertexInputRate::VERTEX);
+        .input_rate(vk::VertexInputRate::VERTEX)];
+    let attribute_descriptions = [vk::VertexInputAttributeDescriptionBuilder::new()
+        .binding(0)
+        .location(0)
+        .format(vk::Format::R32G32_SFLOAT)
+        .offset(0)];
 
-    // Vertex input settings (since vertices are hard-coded in the shader for now, ít is specified to take no input)
-    let pipeline_vertex_input_state_info = vk::PipelineVertexInputStateCreateInfoBuilder::new();
+    // Vertex input settings
+    let pipeline_vertex_input_state_info = vk::PipelineVertexInputStateCreateInfoBuilder::new()
+        .vertex_binding_descriptions(&binding_descriptions)
+        .vertex_attribute_descriptions(&attribute_descriptions);
     // Input assembly settings
     let pipeline_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfoBuilder::new()
         .topology(vk::PrimitiveTopology::TRIANGLE_STRIP)

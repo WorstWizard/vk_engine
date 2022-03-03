@@ -10,6 +10,8 @@ mod swapchain;
 mod pipeline;
 mod shaders;
 
+pub use pipeline::Vert;
+
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
 #[cfg(debug_assertions)]
 pub const VALIDATION_ENABLED: bool = true;
