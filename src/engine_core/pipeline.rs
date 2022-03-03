@@ -6,9 +6,8 @@ use super::shaders::{Shader, ShaderType}; //Would like to avoid using super, but
 
 const DEFAULT_ENTRY: *const c_char = cstr!("main");
 
-
-pub struct Vert(f32, f32);
-
+#[repr(C)]
+pub struct Vert(pub f32, pub f32);
 
 pub fn default_pipeline(
     logical_device: &DeviceLoader,

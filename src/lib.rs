@@ -48,6 +48,9 @@ pub unsafe fn drawing_commands<F>(app: &mut BaseApp, index: usize, commands: F, 
     app.device.cmd_begin_render_pass(app.command_buffers[index], &renderpass_begin_info, vk::SubpassContents::INLINE);
     app.device.cmd_bind_pipeline(app.command_buffers[index], vk::PipelineBindPoint::GRAPHICS, app.graphics_pipeline);
     app.device.cmd_push_constants(app.command_buffers[index], app.graphics_pipeline_layout, vk::ShaderStageFlags::VERTEX, 0, (push_constants.len()*size_of::<f32>()) as u32, push_constants.as_ptr() as *const c_void);
+    let vertex_buffers = [app.vertex_buffer];
+    let offsets = [0];
+    app.device.cmd_bind_vertex_buffers(app.command_buffers[index], 0, &vertex_buffers, &offsets);
 
     commands(app, index);
 

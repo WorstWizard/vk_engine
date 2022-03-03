@@ -156,6 +156,19 @@ impl BaseApp {
             );
         let vertex_buffer_memory = unsafe {logical_device.allocate_memory(&mem_alloc_info, None)}.unwrap();
         unsafe {logical_device.bind_buffer_memory(vertex_buffer, vertex_buffer_memory, 0)}.unwrap();
+        let data = unsafe {logical_device.map_memory(vertex_buffer_memory, 0, vk::WHOLE_SIZE, vk::MemoryMapFlags::empty())}.unwrap();
+        let verts = [
+            Vert(-1.0, -1.0),
+            Vert( 1.0, -1.0),
+            Vert(-1.0,  1.0),
+            Vert( 1.0,  1.0),
+        ];
+        unsafe {
+            let dat_ptr = data as *mut [Vert; 4];
+            std::ptr::write(dat_ptr, verts);
+
+            //println!("{:?}", std::ptr::read(data as *const [f32; 8]));
+        }
     
         let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, image_views.len() as u32);
     
@@ -320,7 +333,7 @@ use engine_core::Vert;
 use std::mem::size_of;
 fn create_vertex_buffer(device: &DeviceLoader) -> vk::Buffer {
     let buffer_info = vk::BufferCreateInfoBuilder::new()
-        .size(size_of::<Vert>() as u64 * 4)
+        .size(size_of::<Vert>() as vk::DeviceSize * 4)
         .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
         .sharing_mode(vk::SharingMode::EXCLUSIVE);
     unsafe{ device.create_buffer(&buffer_info, None) }.unwrap()
