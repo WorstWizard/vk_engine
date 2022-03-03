@@ -181,11 +181,11 @@ pub fn create_graphics_pipeline(logical_device: &DeviceLoader, swapchain_extent:
     // Shader modules
     let (vert_shader_module, vert_stage_info) = pipeline::create_shader_module(
         logical_device,
-        shaders::load_shader("shaders_compiled/man_vert.spv", shaders::ShaderType::Vertex).unwrap()
+        shaders::compile_shader("shaders/mandelbrot.vert", None, shaders::ShaderType::Vertex).unwrap()
     );
     let (frag_shader_module, frag_stage_info) = pipeline::create_shader_module(
         logical_device,
-        shaders::load_shader("shaders_compiled/man_frag.spv", shaders::ShaderType::Fragment).unwrap()
+        shaders::compile_shader("shaders/mandelbrot.frag", None, shaders::ShaderType::Fragment).unwrap()
     );
     let shader_modules = vec![(vert_shader_module, vert_stage_info), (frag_shader_module, frag_stage_info)];
 

@@ -16,6 +16,13 @@ pub fn default_pipeline(
     push_constants: [f32; 1],
 ) -> (vk::Pipeline, vk::PipelineLayout) {
 
+
+    struct Vert(f32, f32, f32);
+    let binding_description = vk::VertexInputBindingDescriptionBuilder::new()
+        .binding(0)
+        .stride(size_of::<Vert>() as u32)
+        .input_rate(vk::VertexInputRate::VERTEX);
+
     // Vertex input settings (since vertices are hard-coded in the shader for now, ít is specified to take no input)
     let pipeline_vertex_input_state_info = vk::PipelineVertexInputStateCreateInfoBuilder::new();
     // Input assembly settings
