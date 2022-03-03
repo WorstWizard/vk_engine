@@ -51,8 +51,7 @@ fn main() {
             },
             Event::MainEventsCleared => { //Main body
                 //If drawing continously, put rendering code here directly
-
-
+                
                 //Wait for this frame's command buffer to finish execution (image presented)
                 let wait_fences = [vulkan_app.sync.in_flight[current_frame]];
                 unsafe {vulkan_app.device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
@@ -109,7 +108,6 @@ fn main() {
                 current_frame = current_frame % vk_engine::engine_core::MAX_FRAMES_IN_FLIGHT;
             },
             Event::RedrawRequested(_) => { //Conditionally redraw (OS might request this too)
-
             },
             Event::LoopDestroyed => {
                 println!("Exiting event loop, should drop application");
