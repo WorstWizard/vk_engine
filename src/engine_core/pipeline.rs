@@ -3,11 +3,9 @@ use std::mem::size_of;
 use std::os::raw::c_char;
 use erupt::{vk, cstr, DeviceLoader};
 use super::shaders::{Shader, ShaderType}; //Would like to avoid using super, but it's the cleanest option with the current structure
+use super::buffer::Vert;
 
 const DEFAULT_ENTRY: *const c_char = cstr!("main");
-
-#[repr(C)]
-pub struct Vert(pub f32, pub f32);
 
 pub fn default_pipeline(
     logical_device: &DeviceLoader,

@@ -133,42 +133,16 @@ impl BaseApp {
             .queue_family_index(queue_family_indices[engine_core::GRAPHICS_Q_IDX]);
         let command_pool = unsafe {logical_device.create_command_pool(&command_pool_info, None)}.expect("Could not create command pool!");
 
-        let vertex_buffer = create_vertex_buffer(&logical_device);
-        let memory_requirements = unsafe{ logical_device.get_buffer_memory_requirements(vertex_buffer) };
-        fn find_memory_type(instance: &InstanceLoader, physical_device: vk::PhysicalDevice, type_filter: u32, properties: vk::MemoryPropertyFlags) -> Result<(u32, vk::MemoryType), &str> {
-            let memory_properties = unsafe{ instance.get_physical_device_memory_properties(physical_device) };
-            for (i, mem_type) in memory_properties.memory_types.into_iter().enumerate() {
-                if (type_filter & (1 << i)) != 0 && (mem_type.property_flags.contains(properties)) {
-                    return Ok((i as u32, mem_type));
-                }
-            }
-            return Err("No suitable memory type found!");
-        }
-        let mem_alloc_info = vk::MemoryAllocateInfoBuilder::new()
-            .allocation_size(memory_requirements.size)
-            .memory_type_index(
-                find_memory_type(
-                    &instance,
-                    physical_device,
-                    memory_requirements.memory_type_bits,
-                    vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
-                ).unwrap().0
-            );
-        let vertex_buffer_memory = unsafe {logical_device.allocate_memory(&mem_alloc_info, None)}.unwrap();
-        unsafe {logical_device.bind_buffer_memory(vertex_buffer, vertex_buffer_memory, 0)}.unwrap();
-        let data = unsafe {logical_device.map_memory(vertex_buffer_memory, 0, vk::WHOLE_SIZE, vk::MemoryMapFlags::empty())}.unwrap();
         let verts = [
-            Vert(-1.0, -1.0),
-            Vert( 1.0, -1.0),
-            Vert(-1.0,  1.0),
-            Vert( 1.0,  1.0),
+            engine_core::Vert(-1.0, -1.0),
+            engine_core::Vert( 1.0, -1.0),
+            engine_core::Vert(-1.0,  1.0),
+            engine_core::Vert( 1.0,  1.0),
         ];
-        unsafe {
-            let dat_ptr = data as *mut [Vert; 4];
-            std::ptr::write(dat_ptr, verts);
 
-            //println!("{:?}", std::ptr::read(data as *const [f32; 8]));
-        }
+        let vertex_buffer = engine_core::create_vertex_buffer(&logical_device, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
+        let (buffer_pointer, vertex_buffer_memory) = engine_core::allocate_and_bind_buffer(&instance, physical_device, &logical_device, vertex_buffer);
+        unsafe { engine_core::write_to_buffer(buffer_pointer, verts) };
     
         let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, image_views.len() as u32);
     
@@ -322,19 +296,4 @@ impl BaseApp {
         }
         self.device.destroy_swapchain_khr(self.swapchain, None);
     }
-}
-
-
-
-
-
-
-use engine_core::Vert;
-use std::mem::size_of;
-fn create_vertex_buffer(device: &DeviceLoader) -> vk::Buffer {
-    let buffer_info = vk::BufferCreateInfoBuilder::new()
-        .size(size_of::<Vert>() as vk::DeviceSize * 4)
-        .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
-        .sharing_mode(vk::SharingMode::EXCLUSIVE);
-    unsafe{ device.create_buffer(&buffer_info, None) }.unwrap()
 }

@@ -9,8 +9,9 @@ mod phys_device;
 mod swapchain;
 mod pipeline;
 mod shaders;
+mod buffer;
 
-pub use pipeline::Vert;
+pub use buffer::*;
 
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
 #[cfg(debug_assertions)]
