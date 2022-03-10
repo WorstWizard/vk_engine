@@ -1,10 +1,10 @@
 use erupt::{vk, InstanceLoader, DeviceLoader};
-use std::mem::size_of;
 use std::ffi::c_void;
 
-#[repr(C)]
+#[repr(C)] //Unnecessary in this case, but keeping it to ensure consistency in the future
 pub struct Vert(pub f32, pub f32);
 
+/// Refer to https://doc.rust-lang.org/reference/type-layout.html for info on data layout.
 pub fn create_vertex_buffer(logical_device: &DeviceLoader, size: vk::DeviceSize) -> vk::Buffer {
     let buffer_info = vk::BufferCreateInfoBuilder::new()
         .size(size)
@@ -42,7 +42,8 @@ pub fn allocate_and_bind_buffer(instance: &InstanceLoader, physical_device: vk::
     (buffer_pointer, buffer_memory)
 }
 
-pub unsafe fn write_to_buffer<T>(buffer_pointer: *mut c_void, data: T) {
+/// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, to ensure memory safety
+pub unsafe fn write_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: T) {
     let dat_ptr = buffer_pointer as *mut T;
     std::ptr::write(dat_ptr, data);
 }

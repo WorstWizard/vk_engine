@@ -140,7 +140,7 @@ impl BaseApp {
             engine_core::Vert( 1.0,  1.0),
         ];
 
-        let vertex_buffer = engine_core::create_vertex_buffer(&logical_device, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
+        let vertex_buffer = engine_core::create_vertex_buffer(&logical_device, (std::mem::size_of::<[engine_core::Vert; 4]>()) as u64);
         let (buffer_pointer, vertex_buffer_memory) = engine_core::allocate_and_bind_buffer(&instance, physical_device, &logical_device, vertex_buffer);
         unsafe { engine_core::write_to_buffer(buffer_pointer, verts) };
     
