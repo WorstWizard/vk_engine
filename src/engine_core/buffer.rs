@@ -5,17 +5,16 @@ use std::ffi::c_void;
 pub struct Vert(pub f32, pub f32);
 
 /// Refer to https://doc.rust-lang.org/reference/type-layout.html for info on data layout.
-pub fn create_vertex_buffer(logical_device: &DeviceLoader, size: vk::DeviceSize) -> vk::Buffer {
+pub fn create_buffer(logical_device: &DeviceLoader, size: vk::DeviceSize, usage: vk::BufferUsageFlags) -> vk::Buffer {
     let buffer_info = vk::BufferCreateInfoBuilder::new()
         .size(size)
-        .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
+        .usage(usage)
         .sharing_mode(vk::SharingMode::EXCLUSIVE);
     unsafe{ logical_device.create_buffer(&buffer_info, None) }.unwrap()
 }
 
-pub fn allocate_and_bind_buffer(instance: &InstanceLoader, physical_device: vk::PhysicalDevice, logical_device: &DeviceLoader, buffer: vk::Buffer) -> (*mut c_void, vk::DeviceMemory) {
+pub fn allocate_and_bind_buffer(instance: &InstanceLoader, physical_device: vk::PhysicalDevice, logical_device: &DeviceLoader, buffer: vk::Buffer, memory_properties: vk::MemoryPropertyFlags) -> (*mut c_void, vk::DeviceMemory) {
     let memory_requirements = unsafe{ logical_device.get_buffer_memory_requirements(buffer) };
-    
     fn find_memory_type(instance: &InstanceLoader, physical_device: vk::PhysicalDevice, type_filter: u32, properties: vk::MemoryPropertyFlags) -> Result<(u32, vk::MemoryType), &str> {
         let memory_properties = unsafe{ instance.get_physical_device_memory_properties(physical_device) };
         for (i, mem_type) in memory_properties.memory_types.into_iter().enumerate() {
@@ -33,7 +32,7 @@ pub fn allocate_and_bind_buffer(instance: &InstanceLoader, physical_device: vk::
                 &instance,
                 physical_device,
                 memory_requirements.memory_type_bits,
-                vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
+                memory_properties
             ).unwrap().0
         );
     let buffer_memory = unsafe {logical_device.allocate_memory(&mem_alloc_info, None)}.unwrap();
