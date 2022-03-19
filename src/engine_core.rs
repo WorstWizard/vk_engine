@@ -11,8 +11,6 @@ mod pipeline;
 mod shaders;
 mod buffer;
 
-pub use buffer::*;
-
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
 #[cfg(debug_assertions)]
 pub const VALIDATION_ENABLED: bool = true;
@@ -243,4 +241,19 @@ pub fn allocate_command_buffers(logical_device: &DeviceLoader, command_pool: vk:
         .level(vk::CommandBufferLevel::PRIMARY)
         .command_buffer_count(amount);
     unsafe {logical_device.allocate_command_buffers(&command_buffer_allocate_info)}.expect("Could not create command buffers!")
+}
+
+#[repr(C)] //Unnecessary in this case, but keeping it to ensure consistency in the future
+pub struct Vert(pub f32, pub f32);
+
+pub fn create_vertex_buffer(logical_device: &DeviceLoader, vertices: ) {
+    let vertex_buffer = buffer::create_buffer(logical_device, (std::mem::size_of::<[engine_core::Vert; 4]>()) as u64, vk::BufferUsageFlags::VERTEX_BUFFER);
+        let (buffer_pointer, vertex_buffer_memory) = engine_core::allocate_and_bind_buffer(
+            &instance,
+            physical_device,
+            &logical_device,
+            vertex_buffer,
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
+        );
+        unsafe { engine_core::write_to_buffer(buffer_pointer, verts) };
 }

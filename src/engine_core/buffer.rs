@@ -1,9 +1,6 @@
 use erupt::{vk, InstanceLoader, DeviceLoader};
 use std::ffi::c_void;
 
-#[repr(C)] //Unnecessary in this case, but keeping it to ensure consistency in the future
-pub struct Vert(pub f32, pub f32);
-
 /// Refer to https://doc.rust-lang.org/reference/type-layout.html for info on data layout.
 pub fn create_buffer(logical_device: &DeviceLoader, size: vk::DeviceSize, usage: vk::BufferUsageFlags) -> vk::Buffer {
     let buffer_info = vk::BufferCreateInfoBuilder::new()
