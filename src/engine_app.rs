@@ -133,22 +133,15 @@ impl BaseApp {
             .queue_family_index(queue_family_indices[engine_core::GRAPHICS_Q_IDX]);
         let command_pool = unsafe {logical_device.create_command_pool(&command_pool_info, None)}.expect("Could not create command pool!");
 
-        let verts = [
+        let verts = vec![
             engine_core::Vert(-1.0, -1.0),
             engine_core::Vert( 1.0, -1.0),
             engine_core::Vert(-1.0,  1.0),
             engine_core::Vert( 1.0,  1.0),
         ];
 
-        let vertex_buffer = engine_core::create_buffer(&logical_device, (std::mem::size_of::<[engine_core::Vert; 4]>()) as u64, vk::BufferUsageFlags::VERTEX_BUFFER);
-        let (buffer_pointer, vertex_buffer_memory) = engine_core::allocate_and_bind_buffer(
-            &instance,
-            physical_device,
-            &logical_device,
-            vertex_buffer,
-            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
-        );
-        unsafe { engine_core::write_to_buffer(buffer_pointer, verts) };
+        let (vertex_buffer, buffer_pointer, vertex_buffer_memory) = engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, verts.len());
+        unsafe { engine_core::write_vec_to_buffer(buffer_pointer, verts) };
     
         let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, image_views.len() as u32);
     

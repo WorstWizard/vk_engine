@@ -3,7 +3,7 @@ use std::mem::size_of;
 use std::os::raw::c_char;
 use erupt::{vk, cstr, DeviceLoader};
 use super::shaders::{Shader, ShaderType}; //Would like to avoid using super, but it's the cleanest option with the current structure
-use super::buffer::Vert;
+use super::Vert;
 
 const DEFAULT_ENTRY: *const c_char = cstr!("main");
 

@@ -246,14 +246,23 @@ pub fn allocate_command_buffers(logical_device: &DeviceLoader, command_pool: vk:
 #[repr(C)] //Unnecessary in this case, but keeping it to ensure consistency in the future
 pub struct Vert(pub f32, pub f32);
 
-pub fn create_vertex_buffer(logical_device: &DeviceLoader, vertices: ) {
-    let vertex_buffer = buffer::create_buffer(logical_device, (std::mem::size_of::<[engine_core::Vert; 4]>()) as u64, vk::BufferUsageFlags::VERTEX_BUFFER);
-        let (buffer_pointer, vertex_buffer_memory) = engine_core::allocate_and_bind_buffer(
-            &instance,
-            physical_device,
-            &logical_device,
-            vertex_buffer,
-            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
-        );
-        unsafe { engine_core::write_to_buffer(buffer_pointer, verts) };
+pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (vk::Buffer, *mut c_void, vk::DeviceMemory) {
+    //Easy to get the memory size wrong, might fail invisibly
+    let memory_size = (std::mem::size_of::<Vert>() * size) as u64;
+    let vertex_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER);
+
+    let (buffer_pointer, vertex_buffer_memory) = buffer::allocate_and_bind_buffer(
+        &instance,
+        physical_device,
+        &logical_device,
+        vertex_buffer,
+        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
+    );
+
+    (vertex_buffer, buffer_pointer, vertex_buffer_memory)
+}
+
+/// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, to ensure memory safety
+pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: Vec<T>) {
+    std::ptr::copy_nonoverlapping(data.as_ptr(), buffer_pointer as *mut T, data.len());
 }
