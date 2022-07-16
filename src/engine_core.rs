@@ -305,5 +305,6 @@ pub fn copy_buffer(logical_device: &DeviceLoader, command_pool: vk::CommandPool,
     unsafe {
         logical_device.queue_submit(graphics_queue, &[submit_info], vk::Fence::null()).unwrap();
         logical_device.queue_wait_idle(graphics_queue).unwrap();
+        logical_device.free_command_buffers(command_pool, &temp_command_buffers);
     }
 }
