@@ -51,6 +51,7 @@ pub unsafe fn drawing_commands<F>(app: &mut BaseApp, index: usize, commands: F, 
     let vertex_buffers = [app.vertex_buffer];
     let offsets = [0];
     app.device.cmd_bind_vertex_buffers(app.command_buffers[index], 0, &vertex_buffers, &offsets);
+    app.device.cmd_bind_index_buffer(app.command_buffers[index], app.index_buffer, 0, vk::IndexType::UINT16);
 
     commands(app, index);
 

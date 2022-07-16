@@ -13,6 +13,8 @@ pub struct BaseApp {
     // Changing the order will likely cause bad cleanup behaviour.
     pub sync: engine_core::SyncPrims,
     pub command_buffers: SmallVec<vk::CommandBuffer>,
+    index_buffer_memory: vk::DeviceMemory,
+    pub index_buffer: vk::Buffer,
     vertex_buffer_memory: vk::DeviceMemory,
     pub vertex_buffer: vk::Buffer,
     command_pool: vk::CommandPool,
@@ -43,6 +45,8 @@ impl Drop for BaseApp {
                 self.device.destroy_fence(self.sync.in_flight[i], None);
             }
 
+            self.device.destroy_buffer(self.index_buffer, None);
+            self.device.free_memory(self.index_buffer_memory, None);
             self.device.destroy_buffer(self.vertex_buffer, None);
             self.device.free_memory(self.vertex_buffer_memory, None);
 
@@ -140,19 +144,33 @@ impl BaseApp {
             engine_core::Vert( 1.0,  1.0),
         ];
 
+        let indices: Vec<u16> = vec![0,1,2,1,3,2];
 
         let (vertex_buffer, vertex_buffer_memory) = engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, verts.len());
-        let (staging_pointer, staging_buffer, staging_buffer_memory) = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
+        {
+            let (staging_pointer, staging_buffer, staging_buffer_memory) = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
 
-        unsafe { engine_core::write_vec_to_buffer(staging_pointer, verts) };
-        engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, staging_buffer, vertex_buffer, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
-    
-        //let (index_pointer, index_buffer, index_buffer_memory) = engine_core::create_index_buffer(&instance, &physical_device, &logical_device);
+            unsafe { engine_core::write_vec_to_buffer(staging_pointer, verts) };
+            engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, staging_buffer, vertex_buffer, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
+        
+            unsafe {
+                logical_device.unmap_memory(staging_buffer_memory); //Not strictly necessesary?
+                logical_device.free_memory(staging_buffer_memory, None);
+                logical_device.destroy_buffer(staging_buffer, None);
+            }
+        }
 
-        unsafe {
-            logical_device.unmap_memory(staging_buffer_memory); //Not strictly necessesary?
-            logical_device.free_memory(staging_buffer_memory, None);
-            logical_device.destroy_buffer(staging_buffer, None);
+        let (index_buffer, index_buffer_memory) = engine_core::create_index_buffer(&instance, &physical_device, &logical_device, 6); //6 indices necessary to specify rect
+        {   
+            let (staging_pointer, staging_buffer, staging_buffer_memory) = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<u16>() * 6) as u64);
+            unsafe { engine_core::write_vec_to_buffer(staging_pointer, indices) };
+            engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, staging_buffer, index_buffer, (std::mem::size_of::<u16>() * 6) as u64);
+
+            unsafe {
+                logical_device.unmap_memory(staging_buffer_memory); //Not strictly necessesary?
+                logical_device.free_memory(staging_buffer_memory, None);
+                logical_device.destroy_buffer(staging_buffer, None);
+            }
         }
 
         let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, image_views.len() as u32);
@@ -179,6 +197,8 @@ impl BaseApp {
             command_pool,
             vertex_buffer,
             vertex_buffer_memory,
+            index_buffer,
+            index_buffer_memory,
             command_buffers,
             sync,
         }

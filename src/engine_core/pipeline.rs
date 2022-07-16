@@ -33,7 +33,7 @@ pub fn default_pipeline(
         .vertex_attribute_descriptions(&attribute_descriptions);
     // Input assembly settings
     let pipeline_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfoBuilder::new()
-        .topology(vk::PrimitiveTopology::TRIANGLE_STRIP)
+        .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
         .primitive_restart_enable(false);
     // Viewport settings
     let viewports = [vk::ViewportBuilder::new()

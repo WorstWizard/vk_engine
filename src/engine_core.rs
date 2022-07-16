@@ -264,9 +264,8 @@ pub fn create_staging_buffer(instance: &InstanceLoader, physical_device: &vk::Ph
 pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (vk::Buffer, vk::DeviceMemory) {
     //Easy to get the memory size wrong, might fail invisibly
     let memory_size = (std::mem::size_of::<Vert>() * size) as u64;
-    //Device local buffer, or *true* vertex buffer
+    //Device local buffer, or *true* vertex buffer, needs a staging buffer to transfer data to it
     let vertex_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
-
     let vertex_buffer_memory = buffer::allocate_and_bind_buffer(
         &instance,
         physical_device,
@@ -278,8 +277,8 @@ pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::Phy
     (vertex_buffer, vertex_buffer_memory)
 }
 
-/*
 pub fn create_index_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (vk::Buffer, vk::DeviceMemory) {
+    //Easy to get the memory size wrong, might fail invisibly
     let memory_size = (std::mem::size_of::<u16>() * size) as u64;
     let index_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
     let index_buffer_memory = buffer::allocate_and_bind_buffer(
@@ -290,17 +289,8 @@ pub fn create_index_buffer(instance: &InstanceLoader, physical_device: &vk::Phys
         vk::MemoryPropertyFlags::DEVICE_LOCAL
     );
 
-    let staging_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
-    let staging_buffer_memory = buffer::allocate_and_bind_buffer(
-        &instance,
-        physical_device,
-        &logical_device,
-        staging_buffer,
-        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
-    );
-
-    let idx_staging_point = buffer::map_buffer_memory(&logical_device, staging_buffer_memory);
-}*/
+    (index_buffer, index_buffer_memory)
+}
 
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, to ensure memory safety
 pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: Vec<T>) {

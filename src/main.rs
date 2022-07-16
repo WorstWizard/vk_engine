@@ -75,7 +75,8 @@ fn main() {
                     vulkan_app.reallocate_command_buffers();
                     unsafe {vulkan_app.record_command_buffers(|app, i| {
                         vk_engine::drawing_commands(app, i, |app, i| {
-                            app.device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
+                            app.device.cmd_draw_indexed(app.command_buffers[i], 6, 1, 0, 0, 0);
+                            //app.device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
                         }, &push_constants);
                     })};
                 }
