@@ -246,23 +246,64 @@ pub fn allocate_command_buffers(logical_device: &DeviceLoader, command_pool: vk:
 #[repr(C)] //Unnecessary in this case, but keeping it to ensure consistency in the future
 pub struct Vert(pub f32, pub f32);
 
-pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (vk::Buffer, *mut c_void, vk::DeviceMemory) {
+pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (*mut c_void, vk::Buffer, vk::DeviceMemory, vk::Buffer, vk::DeviceMemory) {
     //Easy to get the memory size wrong, might fail invisibly
     let memory_size = (std::mem::size_of::<Vert>() * size) as u64;
-    let vertex_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER);
+    //Host visible buffer; data is transferred to a device local buffer at transfer stage
+    let staging_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
+    //Device local buffer, or *true* vertex buffer
+    let vertex_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
 
-    let (buffer_pointer, vertex_buffer_memory) = buffer::allocate_and_bind_buffer(
+    let staging_buffer_memory = buffer::allocate_and_bind_buffer(
+        &instance,
+        physical_device,
+        &logical_device,
+        staging_buffer,
+        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
+    );
+
+    //Remember to unmap!
+    let staging_pointer = buffer::map_buffer_memory(&logical_device, staging_buffer_memory);
+
+    let vertex_buffer_memory = buffer::allocate_and_bind_buffer(
         &instance,
         physical_device,
         &logical_device,
         vertex_buffer,
-        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
+        vk::MemoryPropertyFlags::DEVICE_LOCAL
     );
 
-    (vertex_buffer, buffer_pointer, vertex_buffer_memory)
+    (staging_pointer, staging_buffer, staging_buffer_memory, vertex_buffer, vertex_buffer_memory)
 }
 
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, to ensure memory safety
 pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: Vec<T>) {
     std::ptr::copy_nonoverlapping(data.as_ptr(), buffer_pointer as *mut T, data.len());
+}
+
+/// Immediately sends command to graphics queue to copy data from staging buffer to vertex buffer. Blocks until transfer completes.
+pub fn copy_buffer(logical_device: &DeviceLoader, command_pool: vk::CommandPool, graphics_queue: vk::Queue, src_buffer: vk::Buffer, dst_buffer: vk::Buffer, size: vk::DeviceSize) {
+    let temp_command_buffers = [allocate_command_buffers(&logical_device, command_pool, 1)[0]];
+
+    let recording_info = vk::CommandBufferBeginInfoBuilder::new()
+        .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+    unsafe {
+        logical_device.begin_command_buffer(temp_command_buffers[0], &recording_info).unwrap();
+        
+        let copy_region = vk::BufferCopyBuilder::new()
+            .src_offset(0)
+            .dst_offset(0)
+            .size(size);
+        logical_device.cmd_copy_buffer(temp_command_buffers[0], src_buffer, dst_buffer, &[copy_region]);
+
+        logical_device.end_command_buffer(temp_command_buffers[0]).unwrap();
+    }
+
+    let submit_info = vk::SubmitInfoBuilder::new()
+        .command_buffers(&temp_command_buffers);
+    
+    unsafe {
+        logical_device.queue_submit(graphics_queue, &[submit_info], vk::Fence::null()).unwrap();
+        logical_device.queue_wait_idle(graphics_queue).unwrap();
+    }
 }
