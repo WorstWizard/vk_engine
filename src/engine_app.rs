@@ -13,9 +13,7 @@ pub struct BaseApp {
     // Changing the order will likely cause bad cleanup behaviour.
     pub sync: engine_core::SyncPrims,
     pub command_buffers: SmallVec<vk::CommandBuffer>,
-    staging_buffer_memory: vk::DeviceMemory,
     vertex_buffer_memory: vk::DeviceMemory,
-    pub staging_buffer: vk::Buffer,
     pub vertex_buffer: vk::Buffer,
     command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
@@ -47,8 +45,6 @@ impl Drop for BaseApp {
 
             self.device.destroy_buffer(self.vertex_buffer, None);
             self.device.free_memory(self.vertex_buffer_memory, None);
-            self.device.destroy_buffer(self.staging_buffer, None);
-            self.device.free_memory(self.staging_buffer_memory, None);
 
             self.device.destroy_command_pool(self.command_pool, None);
 
@@ -144,13 +140,21 @@ impl BaseApp {
             engine_core::Vert( 1.0,  1.0),
         ];
 
-        let (staging_pointer, staging_buffer, staging_buffer_memory, vertex_buffer, vertex_buffer_memory) =
-            engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, verts.len());
+
+        let (vertex_buffer, vertex_buffer_memory) = engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, verts.len());
+        let (staging_pointer, staging_buffer, staging_buffer_memory) = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
 
         unsafe { engine_core::write_vec_to_buffer(staging_pointer, verts) };
-
         engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, staging_buffer, vertex_buffer, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
     
+        //let (index_pointer, index_buffer, index_buffer_memory) = engine_core::create_index_buffer(&instance, &physical_device, &logical_device);
+
+        unsafe {
+            logical_device.unmap_memory(staging_buffer_memory); //Not strictly necessesary?
+            logical_device.free_memory(staging_buffer_memory, None);
+            logical_device.destroy_buffer(staging_buffer, None);
+        }
+
         let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, image_views.len() as u32);
     
         //// Create semaphores for in-render-pass synchronization
@@ -173,8 +177,6 @@ impl BaseApp {
             render_pass,
             framebuffers,
             command_pool,
-            staging_buffer,
-            staging_buffer_memory,
             vertex_buffer,
             vertex_buffer_memory,
             command_buffers,

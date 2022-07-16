@@ -32,6 +32,7 @@ pub fn allocate_and_bind_buffer(instance: &InstanceLoader, physical_device: &vk:
                 memory_properties
             ).unwrap().0
         );
+    // May hit allocation limit if too many separate allocations are performed; use some allocator to do many objects with few buffers
     let buffer_memory = unsafe {logical_device.allocate_memory(&mem_alloc_info, None)}.unwrap();
     unsafe {logical_device.bind_buffer_memory(buffer, buffer_memory, 0)}.unwrap();
     

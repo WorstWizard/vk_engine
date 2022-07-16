@@ -246,14 +246,9 @@ pub fn allocate_command_buffers(logical_device: &DeviceLoader, command_pool: vk:
 #[repr(C)] //Unnecessary in this case, but keeping it to ensure consistency in the future
 pub struct Vert(pub f32, pub f32);
 
-pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (*mut c_void, vk::Buffer, vk::DeviceMemory, vk::Buffer, vk::DeviceMemory) {
-    //Easy to get the memory size wrong, might fail invisibly
-    let memory_size = (std::mem::size_of::<Vert>() * size) as u64;
+pub fn create_staging_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, memory_size: vk::DeviceSize) -> (*mut c_void, vk::Buffer, vk::DeviceMemory) {
     //Host visible buffer; data is transferred to a device local buffer at transfer stage
     let staging_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
-    //Device local buffer, or *true* vertex buffer
-    let vertex_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
-
     let staging_buffer_memory = buffer::allocate_and_bind_buffer(
         &instance,
         physical_device,
@@ -261,9 +256,16 @@ pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::Phy
         staging_buffer,
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
     );
-
     //Remember to unmap!
     let staging_pointer = buffer::map_buffer_memory(&logical_device, staging_buffer_memory);
+    (staging_pointer, staging_buffer, staging_buffer_memory)
+}
+
+pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (vk::Buffer, vk::DeviceMemory) {
+    //Easy to get the memory size wrong, might fail invisibly
+    let memory_size = (std::mem::size_of::<Vert>() * size) as u64;
+    //Device local buffer, or *true* vertex buffer
+    let vertex_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
 
     let vertex_buffer_memory = buffer::allocate_and_bind_buffer(
         &instance,
@@ -273,8 +275,32 @@ pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::Phy
         vk::MemoryPropertyFlags::DEVICE_LOCAL
     );
 
-    (staging_pointer, staging_buffer, staging_buffer_memory, vertex_buffer, vertex_buffer_memory)
+    (vertex_buffer, vertex_buffer_memory)
 }
+
+/*
+pub fn create_index_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (vk::Buffer, vk::DeviceMemory) {
+    let memory_size = (std::mem::size_of::<u16>() * size) as u64;
+    let index_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
+    let index_buffer_memory = buffer::allocate_and_bind_buffer(
+        &instance,
+        physical_device,
+        &logical_device,
+        index_buffer,
+        vk::MemoryPropertyFlags::DEVICE_LOCAL
+    );
+
+    let staging_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
+    let staging_buffer_memory = buffer::allocate_and_bind_buffer(
+        &instance,
+        physical_device,
+        &logical_device,
+        staging_buffer,
+        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
+    );
+
+    let idx_staging_point = buffer::map_buffer_memory(&logical_device, staging_buffer_memory);
+}*/
 
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, to ensure memory safety
 pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: Vec<T>) {
