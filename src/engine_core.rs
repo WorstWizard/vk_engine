@@ -1,9 +1,10 @@
-use std::ffi::{CStr};
-use std::os::raw::{c_void, c_char};
-use std::collections::HashSet;
 use winit::window::Window;
 use erupt::{vk, EntryLoader, InstanceLoader, DeviceLoader, SmallVec};
 use erupt::cstr;
+use std::ffi::{CStr};
+use std::os::raw::{c_void, c_char};
+use std::collections::HashSet;
+use std::rc::Rc;
 
 mod phys_device;
 mod swapchain;
@@ -21,6 +22,8 @@ pub const DEVICE_EXTS: [*const c_char; 1] = [vk::KHR_SWAPCHAIN_EXTENSION_NAME];
 pub const GRAPHICS_Q_IDX: usize = 0;
 pub const PRESENT_Q_IDX: usize = 1;
 pub const MAX_FRAMES_IN_FLIGHT: usize = 2;
+
+pub use buffer::ManagedBuffer;
 
 pub fn init_debug_messenger_info() -> vk::DebugUtilsMessengerCreateInfoEXTBuilder<'static> {
     let messenger_info = vk::DebugUtilsMessengerCreateInfoEXTBuilder::new()
@@ -81,7 +84,7 @@ pub fn find_physical_device(instance: &InstanceLoader, surface: &vk::SurfaceKHR)
     (physical_device, queue_family_indices)
 }
 
-pub fn create_logical_device(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, queue_family_indices: [u32; 2]) -> Box<DeviceLoader> {
+pub fn create_logical_device(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, queue_family_indices: [u32; 2]) -> Rc<DeviceLoader> {
     let unique_queue_family_indices: Vec<u32> = HashSet::from(queue_family_indices).into_iter().collect();
     let device_queue_infos: &[vk::DeviceQueueCreateInfoBuilder] = &unique_queue_family_indices.into_iter().map(|index| {
         vk::DeviceQueueCreateInfoBuilder::new()
@@ -97,7 +100,7 @@ pub fn create_logical_device(instance: &InstanceLoader, physical_device: &vk::Ph
     if VALIDATION_ENABLED {
         device_create_info = device_create_info.enabled_layer_names(&VALIDATION_LAYERS);
     }
-    let logical_device = Box::new(unsafe {DeviceLoader::new(&instance, *physical_device, &device_create_info)}.expect("Failed to create logical device!"));
+    let logical_device = Rc::new(unsafe {DeviceLoader::new(&instance, *physical_device, &device_create_info)}.expect("Failed to create logical device!"));
     logical_device
 }
 
@@ -246,9 +249,9 @@ pub fn allocate_command_buffers(logical_device: &DeviceLoader, command_pool: vk:
 #[repr(C)] //Unnecessary in this case, but keeping it to ensure consistency in the future
 pub struct Vert(pub f32, pub f32);
 
-pub fn create_staging_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, memory_size: vk::DeviceSize) -> (*mut c_void, vk::Buffer, vk::DeviceMemory) {
+pub fn create_staging_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &Rc<DeviceLoader>, memory_size: vk::DeviceSize) -> ManagedBuffer {
     //Host visible buffer; data is transferred to a device local buffer at transfer stage
-    let staging_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
+    let staging_buffer = buffer::create_buffer(&logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
     let staging_buffer_memory = buffer::allocate_and_bind_buffer(
         &instance,
         physical_device,
@@ -256,16 +259,21 @@ pub fn create_staging_buffer(instance: &InstanceLoader, physical_device: &vk::Ph
         staging_buffer,
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
     );
-    //Remember to unmap!
-    let staging_pointer = buffer::map_buffer_memory(&logical_device, staging_buffer_memory);
-    (staging_pointer, staging_buffer, staging_buffer_memory)
+
+    ManagedBuffer {
+        logical_device: Rc::clone(logical_device),
+        memory_size,
+        buffer: staging_buffer,
+        buffer_memory: Some(staging_buffer_memory),
+        memory_mapped: false,
+    }
 }
 
-pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (vk::Buffer, vk::DeviceMemory) {
+pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &Rc<DeviceLoader>, size: usize) -> ManagedBuffer {
     //Easy to get the memory size wrong, might fail invisibly
     let memory_size = (std::mem::size_of::<Vert>() * size) as u64;
     //Device local buffer, or *true* vertex buffer, needs a staging buffer to transfer data to it
-    let vertex_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
+    let vertex_buffer = buffer::create_buffer(&logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
     let vertex_buffer_memory = buffer::allocate_and_bind_buffer(
         &instance,
         physical_device,
@@ -274,13 +282,19 @@ pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::Phy
         vk::MemoryPropertyFlags::DEVICE_LOCAL
     );
 
-    (vertex_buffer, vertex_buffer_memory)
+    ManagedBuffer {
+        logical_device: Rc::clone(logical_device),
+        memory_size,
+        buffer: vertex_buffer,
+        buffer_memory: Some(vertex_buffer_memory),
+        memory_mapped: false,
+    }
 }
 
-pub fn create_index_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, size: usize) -> (vk::Buffer, vk::DeviceMemory) {
+pub fn create_index_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &Rc<DeviceLoader>, size: usize) -> ManagedBuffer {
     //Easy to get the memory size wrong, might fail invisibly
     let memory_size = (std::mem::size_of::<u16>() * size) as u64;
-    let index_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
+    let index_buffer = buffer::create_buffer(&logical_device, memory_size, vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
     let index_buffer_memory = buffer::allocate_and_bind_buffer(
         &instance,
         physical_device,
@@ -289,7 +303,13 @@ pub fn create_index_buffer(instance: &InstanceLoader, physical_device: &vk::Phys
         vk::MemoryPropertyFlags::DEVICE_LOCAL
     );
 
-    (index_buffer, index_buffer_memory)
+    ManagedBuffer {
+        logical_device: Rc::clone(logical_device),
+        memory_size,
+        buffer: index_buffer,
+        buffer_memory: Some(index_buffer_memory),
+        memory_mapped: false,
+    }
 }
 
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, to ensure memory safety

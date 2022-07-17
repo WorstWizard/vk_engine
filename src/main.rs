@@ -15,7 +15,7 @@ fn main() {
     let mut push_constants = [0.0];
     unsafe {vulkan_app.record_command_buffers(|app, i| {
         vk_engine::drawing_commands(app, i, |app, i| {
-            app.device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
+            app.logical_device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
         }, &push_constants)
     })};
 
@@ -54,7 +54,7 @@ fn main() {
                 
                 //Wait for this frame's command buffer to finish execution (image presented)
                 let wait_fences = [vulkan_app.sync.in_flight[current_frame]];
-                unsafe {vulkan_app.device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
+                unsafe {vulkan_app.logical_device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
                 // Acquire index of image from the swapchain, signal semaphore once finished
                 let image_index = match vulkan_app.acquire_next_image(current_frame) {
                     Ok(i) => i,
@@ -64,7 +64,7 @@ fn main() {
                     },
                     _ => panic!("Could not acquire image from swapchain!")
                 };
-                unsafe {vulkan_app.device.reset_fences(&wait_fences)}.unwrap(); //Reset the corresponding fence
+                unsafe {vulkan_app.logical_device.reset_fences(&wait_fences)}.unwrap(); //Reset the corresponding fence
 
 
                 //Reallocate to get the new push constants in, lazy mans method
@@ -75,8 +75,8 @@ fn main() {
                     vulkan_app.reallocate_command_buffers();
                     unsafe {vulkan_app.record_command_buffers(|app, i| {
                         vk_engine::drawing_commands(app, i, |app, i| {
-                            app.device.cmd_draw_indexed(app.command_buffers[i], 6, 1, 0, 0, 0);
-                            //app.device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
+                            app.logical_device.cmd_draw_indexed(app.command_buffers[i], 6, 1, 0, 0, 0);
+                            //app.logical_device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
                         }, &push_constants);
                     })};
                 }
@@ -92,7 +92,7 @@ fn main() {
                     .command_buffers(&cmd_buffers)
                     .signal_semaphores(&signal_sems)];
                 unsafe {
-                    vulkan_app.device.queue_submit(vulkan_app.graphics_queue, &submits, vulkan_app.sync.in_flight[current_frame]).expect("Queue submission failed!");
+                    vulkan_app.logical_device.queue_submit(vulkan_app.graphics_queue, &submits, vulkan_app.sync.in_flight[current_frame]).expect("Queue submission failed!");
                 }
 
                 // Present rendered image to the swap chain such that it will show up on screen

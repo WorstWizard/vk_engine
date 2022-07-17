@@ -1,6 +1,8 @@
 use erupt::{vk, {EntryLoader, InstanceLoader, DeviceLoader}, {ExtendableFrom, SmallVec}, utils::{surface}};
 use winit::window::Window;
 use std::ffi::{CString};
+use std::rc::Rc;
+use std::mem::ManuallyDrop;
 use crate::engine_core::{VALIDATION_ENABLED, VALIDATION_LAYERS, MAX_FRAMES_IN_FLIGHT};
 use crate::engine_core;
 
@@ -13,10 +15,8 @@ pub struct BaseApp {
     // Changing the order will likely cause bad cleanup behaviour.
     pub sync: engine_core::SyncPrims,
     pub command_buffers: SmallVec<vk::CommandBuffer>,
-    index_buffer_memory: vk::DeviceMemory,
-    pub index_buffer: vk::Buffer,
-    vertex_buffer_memory: vk::DeviceMemory,
-    pub vertex_buffer: vk::Buffer,
+    pub index_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
+    pub vertex_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
     command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
@@ -27,7 +27,7 @@ pub struct BaseApp {
     pub swapchain_extent: vk::Extent2D,
     pub graphics_queue: vk::Queue,
     present_queue: vk::Queue,
-    pub device: Box<DeviceLoader>,
+    pub logical_device: Rc<DeviceLoader>,
     window: Window,
     surface: vk::SurfaceKHR,
     _messenger: vk::DebugUtilsMessengerEXT,
@@ -37,27 +37,27 @@ pub struct BaseApp {
 impl Drop for BaseApp {
     fn drop(&mut self) {
         unsafe {
-            self.device.device_wait_idle().unwrap(); //Wait until idle before destroying
+            self.logical_device.device_wait_idle().unwrap(); //Wait until idle before destroying
 
             for i in 0..MAX_FRAMES_IN_FLIGHT {
-                self.device.destroy_semaphore(self.sync.image_available[i], None);
-                self.device.destroy_semaphore(self.sync.render_finished[i], None);
-                self.device.destroy_fence(self.sync.in_flight[i], None);
+                self.logical_device.destroy_semaphore(self.sync.image_available[i], None);
+                self.logical_device.destroy_semaphore(self.sync.render_finished[i], None);
+                self.logical_device.destroy_fence(self.sync.in_flight[i], None);
             }
 
-            self.device.destroy_buffer(self.index_buffer, None);
-            self.device.free_memory(self.index_buffer_memory, None);
-            self.device.destroy_buffer(self.vertex_buffer, None);
-            self.device.free_memory(self.vertex_buffer_memory, None);
+            //Explicitly dropping buffers to ensure that the logical device still exists when they do
+            ManuallyDrop::drop(&mut self.vertex_buffer);
+            ManuallyDrop::drop(&mut self.index_buffer);
 
-            self.device.destroy_command_pool(self.command_pool, None);
+            self.logical_device.destroy_command_pool(self.command_pool, None);
 
             self.clean_swapchain_and_dependants();
 
-            self.device.destroy_device(None);
+            self.logical_device.destroy_device(None);
             if !self._messenger.is_null() {
                 self.instance.destroy_debug_utils_messenger_ext(self._messenger, None)
             }
+
             self.instance.destroy_surface_khr(self.surface, None);
             self.instance.destroy_instance(None);
         }
@@ -146,31 +146,22 @@ impl BaseApp {
 
         let indices: Vec<u16> = vec![0,1,2,1,3,2];
 
-        let (vertex_buffer, vertex_buffer_memory) = engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, verts.len());
+        let vertex_buffer = engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, verts.len());
         {
-            let (staging_pointer, staging_buffer, staging_buffer_memory) = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
+            let mut staging_buffer = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
+            let staging_pointer = staging_buffer.map_buffer_memory();
 
             unsafe { engine_core::write_vec_to_buffer(staging_pointer, verts) };
-            engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, staging_buffer, vertex_buffer, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
-        
-            unsafe {
-                logical_device.unmap_memory(staging_buffer_memory); //Not strictly necessesary?
-                logical_device.free_memory(staging_buffer_memory, None);
-                logical_device.destroy_buffer(staging_buffer, None);
-            }
+            engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, *staging_buffer, *vertex_buffer, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
         }
 
-        let (index_buffer, index_buffer_memory) = engine_core::create_index_buffer(&instance, &physical_device, &logical_device, 6); //6 indices necessary to specify rect
+        let index_buffer = engine_core::create_index_buffer(&instance, &physical_device, &logical_device, 6); //6 indices necessary to specify rect
         {   
-            let (staging_pointer, staging_buffer, staging_buffer_memory) = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<u16>() * 6) as u64);
-            unsafe { engine_core::write_vec_to_buffer(staging_pointer, indices) };
-            engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, staging_buffer, index_buffer, (std::mem::size_of::<u16>() * 6) as u64);
+            let mut staging_buffer = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<u16>() * 6) as u64);
+            let staging_pointer = staging_buffer.map_buffer_memory();
 
-            unsafe {
-                logical_device.unmap_memory(staging_buffer_memory); //Not strictly necessesary?
-                logical_device.free_memory(staging_buffer_memory, None);
-                logical_device.destroy_buffer(staging_buffer, None);
-            }
+            unsafe { engine_core::write_vec_to_buffer(staging_pointer, indices) };
+            engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, *staging_buffer, *index_buffer, (std::mem::size_of::<u16>() * 6) as u64);
         }
 
         let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, image_views.len() as u32);
@@ -181,7 +172,7 @@ impl BaseApp {
         BaseApp {
             _entry: entry,
             instance,
-            device: logical_device,
+            logical_device,
             _messenger,
             window,
             surface: surface,
@@ -195,10 +186,8 @@ impl BaseApp {
             render_pass,
             framebuffers,
             command_pool,
-            vertex_buffer,
-            vertex_buffer_memory,
-            index_buffer,
-            index_buffer_memory,
+            vertex_buffer: ManuallyDrop::new(vertex_buffer),
+            index_buffer: ManuallyDrop::new(index_buffer),
             command_buffers,
             sync,
         }
@@ -224,23 +213,23 @@ impl BaseApp {
         for i in 0..self.command_buffers.len() {
             //Begin recording command buffer
             let command_buffer_begin_info = vk::CommandBufferBeginInfoBuilder::new();
-            self.device.begin_command_buffer(self.command_buffers[i], &command_buffer_begin_info).expect("Could not begin command buffer recording!");
+            self.logical_device.begin_command_buffer(self.command_buffers[i], &command_buffer_begin_info).expect("Could not begin command buffer recording!");
 
             commands(self, i);
 
-            self.device.end_command_buffer(self.command_buffers[i]).expect("Failed recording command buffer!");
+            self.logical_device.end_command_buffer(self.command_buffers[i]).expect("Failed recording command buffer!");
         }
     }
 
     /// Frees the command buffers in the pool, then allocates an amount equal to the number of framebuffers.
     pub fn reallocate_command_buffers(&mut self) {
-        unsafe {self.device.free_command_buffers(self.command_pool, &self.command_buffers)};
+        unsafe {self.logical_device.free_command_buffers(self.command_pool, &self.command_buffers)};
 
         let command_buffer_allocate_info = vk::CommandBufferAllocateInfoBuilder::new()
             .command_pool(self.command_pool)
             .level(vk::CommandBufferLevel::PRIMARY)
             .command_buffer_count(self.framebuffers.len() as u32);
-        self.command_buffers = unsafe {self.device.allocate_command_buffers(&command_buffer_allocate_info)}.expect("Could not create command buffers!");
+        self.command_buffers = unsafe {self.logical_device.allocate_command_buffers(&command_buffer_allocate_info)}.expect("Could not create command buffers!");
     }
 
     /** Acquire index of image from the swapchain, signal semaphore once finished.
@@ -258,7 +247,7 @@ impl BaseApp {
     ``` */
     pub fn acquire_next_image(&mut self, framebuffer_index: usize) -> Result<u32, vk::Result> {
         unsafe {
-            self.device.acquire_next_image_khr(self.swapchain, u64::MAX, self.sync.image_available[framebuffer_index], vk::Fence::null()).result()
+            self.logical_device.acquire_next_image_khr(self.swapchain, u64::MAX, self.sync.image_available[framebuffer_index], vk::Fence::null()).result()
         }
     }
 
@@ -285,7 +274,7 @@ impl BaseApp {
             .swapchains(&swapchains)
             .image_indices(&image_indices);
         unsafe {
-            self.device.queue_present_khr(self.present_queue, &present_info).result()
+            self.logical_device.queue_present_khr(self.present_queue, &present_info).result()
         }
     }
 
@@ -296,16 +285,16 @@ impl BaseApp {
     This error is non-fatal and largely unpreventable without a lot of runtime checks in that function, so for now is ignored */
     pub fn recreate_swapchain(&mut self) {
         unsafe {
-            self.device.device_wait_idle().unwrap();
+            self.logical_device.device_wait_idle().unwrap();
             self.clean_swapchain_and_dependants();
         }
 
         let (physical_device, queue_family_indices) = engine_core::find_physical_device(&self.instance, &self.surface);
         let (swapchain, image_format, swapchain_extent, swapchain_images) =
-        engine_core::create_swapchain(&self.instance, &self.window, &self.surface, &physical_device, &self.device, queue_family_indices);
-        let image_views = engine_core::create_image_views(&self.device, &swapchain_images, image_format);
-        let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&self.device, swapchain_extent, image_format, [0.0]);
-        let framebuffers = engine_core::create_framebuffers(&self.device, render_pass, swapchain_extent, &image_views);
+        engine_core::create_swapchain(&self.instance, &self.window, &self.surface, &physical_device, &self.logical_device, queue_family_indices);
+        let image_views = engine_core::create_image_views(&self.logical_device, &swapchain_images, image_format);
+        let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&self.logical_device, swapchain_extent, image_format, [0.0]);
+        let framebuffers = engine_core::create_framebuffers(&self.logical_device, render_pass, swapchain_extent, &image_views);
 
         self.swapchain = swapchain;
         self.swapchain_extent = swapchain_extent;
@@ -317,14 +306,14 @@ impl BaseApp {
     }
     unsafe fn clean_swapchain_and_dependants(&mut self) {
         for buffer in self.framebuffers.drain(..) {
-            self.device.destroy_framebuffer(buffer, None);
+            self.logical_device.destroy_framebuffer(buffer, None);
         }
-        self.device.destroy_pipeline(self.graphics_pipeline, None);
-        self.device.destroy_pipeline_layout(self.graphics_pipeline_layout, None);
-        self.device.destroy_render_pass(self.render_pass, None);
+        self.logical_device.destroy_pipeline(self.graphics_pipeline, None);
+        self.logical_device.destroy_pipeline_layout(self.graphics_pipeline_layout, None);
+        self.logical_device.destroy_render_pass(self.render_pass, None);
         for view in self.image_views.drain(..) {
-            self.device.destroy_image_view(view, None);
+            self.logical_device.destroy_image_view(view, None);
         }
-        self.device.destroy_swapchain_khr(self.swapchain, None);
+        self.logical_device.destroy_swapchain_khr(self.swapchain, None);
     }
 }

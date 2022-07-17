@@ -1,5 +1,58 @@
 use erupt::{vk, InstanceLoader, DeviceLoader};
 use std::ffi::c_void;
+use std::ops::Deref;
+use std::rc::Rc;
+
+pub struct ManagedBuffer {
+    pub logical_device: Rc<DeviceLoader>,
+    pub memory_size: vk::DeviceSize,
+    pub buffer_memory: Option<vk::DeviceMemory>,
+    pub buffer: vk::Buffer,
+    pub memory_mapped: bool,
+}
+impl ManagedBuffer {
+    /// Maps whole of the allocated buffer memory, returns pointer to the data.
+    /// Invalid if memory is not visible to the host device (unsure what happens if not).
+    /// Panics if there's no memory to map
+    pub fn map_buffer_memory(&mut self) -> *mut c_void {
+        if let Some(memory) = self.buffer_memory {
+            self.memory_mapped = true;
+            return map_buffer_memory(&self.logical_device, memory);
+        } else {
+            panic!("Attempt to map unallocated/unbound buffer memory!");
+        }
+    }
+
+    /// Unmaps buffer memory (unsure what happens if it isn't mapped. no-op?)
+    /// Panics if there's no memory to unmap (does it matter?)
+    pub fn unmap_buffer_memory(&mut self) {
+        if let Some(memory) = self.buffer_memory {
+            self.memory_mapped = false;
+            unsafe { self.logical_device.unmap_memory(memory) };
+        } else {
+            panic!("Attempt to unmap unallocated/unbound buffer memory!");
+        }
+    }
+}
+impl Deref for ManagedBuffer {
+    type Target = vk::Buffer;
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
+impl Drop for ManagedBuffer {
+    fn drop(&mut self) {
+        unsafe {
+            if self.memory_mapped {
+                self.unmap_buffer_memory();
+            }
+            if let Some(memory) = self.buffer_memory {
+                self.logical_device.free_memory(memory, None);
+            }
+            self.logical_device.destroy_buffer(self.buffer, None);
+        }
+    }
+}
 
 /// Refer to https://doc.rust-lang.org/reference/type-layout.html for info on data layout.
 pub fn create_buffer(logical_device: &DeviceLoader, size: vk::DeviceSize, usage: vk::BufferUsageFlags) -> vk::Buffer {
