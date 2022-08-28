@@ -16,7 +16,7 @@ pub fn allocate_and_bind_buffer(instance: &InstanceLoader, physical_device: &vk:
         let memory_properties = unsafe{ instance.get_physical_device_memory_properties(physical_device) };
         for (i, mem_type) in memory_properties.memory_types.into_iter().enumerate() {
             if (type_filter & (1 << i)) != 0 && (mem_type.property_flags.contains(properties)) {
-                return Ok((i as u32, mem_type));
+                return Ok((i as u32, *mem_type));
             }
         }
         return Err("No suitable memory type found!");

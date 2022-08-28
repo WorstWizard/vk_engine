@@ -26,7 +26,7 @@ pub fn find_queue_families(instance: &InstanceLoader, surface: &vk::SurfaceKHR, 
             indices[PRESENT_Q_IDX] = i as u32; //Present queue found, look for graphics queue
             found_queues[PRESENT_Q_IDX] = true;
         }
-        for queue_found in found_queues {
+        for queue_found in &found_queues {
             if !queue_found {break 'outer}
         }
         return Some(indices) //Only reached if the above for loop does not break
@@ -56,8 +56,8 @@ fn check_device_extension_support(instance: &InstanceLoader, device: &vk::Physic
     let available_extension_names: Vec<&str> = device_extension_properties
         .iter()
         .map(|ext| unsafe {CStr::from_ptr(ext.extension_name.as_ptr())}.to_str().unwrap() ).collect();
-    for extension in super::DEVICE_EXTS {
-        let ext_name = unsafe {CStr::from_ptr(extension)}.to_str().unwrap();
+    for extension in super::DEVICE_EXTS.iter() {
+        let ext_name = unsafe {CStr::from_ptr(*extension)}.to_str().unwrap();
         if !available_extension_names.contains(&ext_name) {
             return false
         }

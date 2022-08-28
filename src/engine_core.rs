@@ -82,7 +82,11 @@ pub fn find_physical_device(instance: &InstanceLoader, surface: &vk::SurfaceKHR)
 }
 
 pub fn create_logical_device(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, queue_family_indices: [u32; 2]) -> Box<DeviceLoader> {
-    let unique_queue_family_indices: Vec<u32> = HashSet::from(queue_family_indices).into_iter().collect();
+    let unique_queue_family_indices: Vec<u32> = {
+        let mut set: HashSet<u32> = HashSet::default();
+        set.extend(queue_family_indices.iter());
+        set.into_iter().collect()
+    };
     let device_queue_infos: &[vk::DeviceQueueCreateInfoBuilder] = &unique_queue_family_indices.into_iter().map(|index| {
         vk::DeviceQueueCreateInfoBuilder::new()
         .queue_family_index(index)
@@ -182,11 +186,11 @@ pub fn create_graphics_pipeline(logical_device: &DeviceLoader, swapchain_extent:
     // Shader modules
     let (vert_shader_module, vert_stage_info) = pipeline::create_shader_module(
         logical_device,
-        shaders::load_or_compile_shader("shaders_compiled/mandelbrot.vert.spv", "shaders/mandelbrot.vert", shaders::ShaderType::Vertex).unwrap()
+        shaders::load_shader("shaders_compiled/mandelbrot.vert.spv", shaders::ShaderType::Vertex).unwrap()
     );
     let (frag_shader_module, frag_stage_info) = pipeline::create_shader_module(
         logical_device,
-        shaders::load_or_compile_shader("shaders_compiled/mandelbrot.frag.spv", "shaders/mandelbrot.frag", shaders::ShaderType::Fragment).unwrap()
+        shaders::load_shader("shaders_compiled/mandelbrot.frag.spv", shaders::ShaderType::Fragment).unwrap()
     );
     let shader_modules = vec![(vert_shader_module, vert_stage_info), (frag_shader_module, frag_stage_info)];
 
