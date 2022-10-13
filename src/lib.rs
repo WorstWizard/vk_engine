@@ -1,8 +1,13 @@
-//! Slim library for more easily making simple graphical Vulkan applications.
-//! Actively developed, everything may change and break.
-//! There is yet no entirely consistent rule for which functions are safe/unsafe.
-
 //  Author: Kristian Knudsen
+/*!
+Slim library for more easily making simple graphical Vulkan applications.
+Actively developed, everything may change and break.
+There is yet no entirely consistent rule for which functions are safe/unsafe.
+
+### Crate features
+* **shader_compilation** -
+    Provides functions for runtime compilation of shaders using [shaderc](https://crates.io/crates/shaderc)
+*/
 
 use winit::window::{Window, WindowBuilder};
 use winit::event_loop::{EventLoop};

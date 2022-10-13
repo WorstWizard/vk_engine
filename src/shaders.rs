@@ -2,6 +2,7 @@ use std::fs::File;
 use std::path::Path;
 use std::io::Read;
 
+#[derive(Clone)]
 pub struct Shader {
     pub data: Vec<u32>,
     pub shader_type: ShaderType,
@@ -30,14 +31,14 @@ pub fn load_shader<P: AsRef<Path>>(shader_path: P, shader_type: ShaderType) -> R
 }
 
 
-// Feature: shaderc
+// Feature: shader_compilation
 // Leverages shaderc for runtime shader compilation
-#[cfg(feature = "shaderc")]
+#[cfg(feature = "shader_compilation")]
 use shaderc::{ShaderKind, Compiler, CompileOptions};
-#[cfg(feature = "shaderc")]
+#[cfg(feature = "shader_compilation")]
 use std::io::Write;
 
-#[cfg(feature = "shaderc")]
+#[cfg(feature = "shader_compilation")]
 impl From<ShaderType> for ShaderKind {
     fn from(shader_type: ShaderType) -> ShaderKind{
         match shader_type {
@@ -48,7 +49,7 @@ impl From<ShaderType> for ShaderKind {
 }
 
 #[allow(dead_code)]
-#[cfg(feature = "shaderc")]
+#[cfg(any(feature = "shader_compilation"))]
 pub fn load_or_compile_shader<P: AsRef<Path>>(shader_path: P, source_path: P, shader_type: ShaderType) -> Result<Shader, &'static str>{
     let load_result = load_shader(&shader_path, shader_type);
     match load_result {
@@ -60,7 +61,7 @@ pub fn load_or_compile_shader<P: AsRef<Path>>(shader_path: P, source_path: P, sh
 }
 
 #[allow(dead_code)]
-#[cfg(feature = "shaderc")]
+#[cfg(feature = "shader_compilation")]
 pub fn compile_shader<P: AsRef<Path>>(in_path: P, out_path: Option<P>, shader_type: ShaderType) -> Result<Shader, &'static str> {
     if let Ok(mut file) = File::open(&in_path) {
         let file_name = in_path.as_ref().file_name().unwrap().to_str().unwrap(); //If the file loaded, this can't fail

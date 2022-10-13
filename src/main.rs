@@ -10,7 +10,11 @@ const APP_TITLE: &str = "KK Engine Test App";
 
 fn main() {
     let (window, event_loop) = init_window(APP_TITLE, 1000, 1000);
-    let mut vulkan_app = BaseApp::initialize_new(window, APP_TITLE);
+    let shaders_loaded = (
+        vk_engine::shaders::load_shader("shaders_compiled/mandelbrot.vert.spv", vk_engine::shaders::ShaderType::Vertex).unwrap(),
+        vk_engine::shaders::load_shader("shaders_compiled/mandelbrot.frag.spv", vk_engine::shaders::ShaderType::Fragment).unwrap(),
+    );
+    let mut vulkan_app = BaseApp::new(window, APP_TITLE, shaders_loaded.clone());
 
     let mut push_constants = [0.0];
     unsafe {vulkan_app.record_command_buffers(|app, i| {
@@ -59,7 +63,7 @@ fn main() {
                 let image_index = match vulkan_app.acquire_next_image(current_frame) {
                     Ok(i) => i,
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                        vulkan_app.recreate_swapchain();
+                        vulkan_app.recreate_swapchain(shaders_loaded.clone());
                         return
                     },
                     _ => panic!("Could not acquire image from swapchain!")
@@ -99,7 +103,7 @@ fn main() {
                 match vulkan_app.present_image(image_index, signal_sems) {
                     Ok(()) => (),
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
-                        vulkan_app.recreate_swapchain();
+                        vulkan_app.recreate_swapchain(shaders_loaded.clone());
                         return
                     },
                     _ => panic!("Could not present image!")

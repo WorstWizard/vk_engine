@@ -66,7 +66,7 @@ impl Drop for BaseApp {
 }
 
 impl BaseApp {
-    pub fn initialize_new(window: winit::window::Window, app_name: &str) -> BaseApp {
+    pub fn new(window: winit::window::Window, app_name: &str, shaders: (crate::shaders::Shader, crate::shaders::Shader)) -> BaseApp {
         let entry = Box::new(EntryLoader::new().unwrap());
     
         if VALIDATION_ENABLED && !engine_core::check_validation_layer_support(&entry) {
@@ -127,7 +127,7 @@ impl BaseApp {
         let push_constants = [1.0];
     
         //// Graphics pipeline
-        let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&logical_device, swapchain_extent, image_format, push_constants);
+        let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&logical_device, swapchain_extent, image_format, shaders, push_constants);
     
         //// Framebuffers
         let framebuffers = engine_core::create_framebuffers(&logical_device, render_pass, swapchain_extent, &image_views);
@@ -280,10 +280,10 @@ impl BaseApp {
 
     /** Recreates the swapchain and the dependants of the swapchain.
     Necessary if some condition changes that invalidates the swapchain, most commonly a window resize.
-    Extensive resizing of the window will cause rare Vulkan validation errors due to a data race in [`engine_core::create_swapchain`],
+    Excessive resizing of the window will cause rare Vulkan validation errors due to a data race in [`engine_core::create_swapchain`],
     where the extent of the window may change after it has been queried to set the swapchain extent, but before the swapchain is created.
-    This error is non-fatal and largely unpreventable without a lot of runtime checks in that function, so for now is ignored */
-    pub fn recreate_swapchain(&mut self) {
+    This error is non-fatal and largely unpreventable without a lot of runtime checks in that function, so for now it is ignored */
+    pub fn recreate_swapchain(&mut self, shaders: (crate::shaders::Shader, crate::shaders::Shader)) {
         unsafe {
             self.logical_device.device_wait_idle().unwrap();
             self.clean_swapchain_and_dependants();
@@ -293,7 +293,7 @@ impl BaseApp {
         let (swapchain, image_format, swapchain_extent, swapchain_images) =
         engine_core::create_swapchain(&self.instance, &self.window, &self.surface, &physical_device, &self.logical_device, queue_family_indices);
         let image_views = engine_core::create_image_views(&self.logical_device, &swapchain_images, image_format);
-        let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&self.logical_device, swapchain_extent, image_format, [0.0]);
+        let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&self.logical_device, swapchain_extent, image_format, shaders, [0.0]);
         let framebuffers = engine_core::create_framebuffers(&self.logical_device, render_pass, swapchain_extent, &image_views);
 
         self.swapchain = swapchain;
@@ -304,6 +304,7 @@ impl BaseApp {
         self.graphics_pipeline_layout = graphics_pipeline_layout;
         self.framebuffers = framebuffers;
     }
+
     unsafe fn clean_swapchain_and_dependants(&mut self) {
         for buffer in self.framebuffers.drain(..) {
             self.logical_device.destroy_framebuffer(buffer, None);

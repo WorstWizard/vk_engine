@@ -13,6 +13,7 @@ mod pipeline;
 mod buffer;
 
 pub use buffer::ManagedBuffer;
+pub use pipeline::create_shader_module;
 
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
 #[cfg(debug_assertions)]
@@ -181,21 +182,10 @@ pub fn create_image_views(logical_device: &DeviceLoader, swapchain_images: &erup
     image_views
 }
 
-pub fn create_graphics_pipeline(logical_device: &DeviceLoader, swapchain_extent: vk::Extent2D, image_format: vk::Format, push_constants: [f32; 1]) -> (vk::Pipeline, vk::PipelineLayout, vk::RenderPass) {
-    // Shader modules
-    let (vert_shader_module, vert_stage_info) = pipeline::create_shader_module(
-        logical_device,
-        shaders::load_or_compile_shader("shaders_compiled/mandelbrot.vert.spv", "shaders/mandelbrot.vert", shaders::ShaderType::Vertex).unwrap()
-    );
-    let (frag_shader_module, frag_stage_info) = pipeline::create_shader_module(
-        logical_device,
-        shaders::load_or_compile_shader("shaders_compiled/mandelbrot.frag.spv", "shaders/mandelbrot.frag", shaders::ShaderType::Fragment).unwrap()
-    );
-    let shader_modules = vec![(vert_shader_module, vert_stage_info), (frag_shader_module, frag_stage_info)];
+pub fn create_graphics_pipeline(logical_device: &DeviceLoader, swapchain_extent: vk::Extent2D, image_format: vk::Format, shaders: (shaders::Shader, shaders::Shader), push_constants: [f32; 1]) -> (vk::Pipeline, vk::PipelineLayout, vk::RenderPass) {
+    let render_pass = pipeline::default_render_pass(logical_device, image_format);
 
-    let render_pass = pipeline::create_render_pass(logical_device, image_format);
-
-    let pipeline = pipeline::default_pipeline(logical_device, render_pass, swapchain_extent, shader_modules, push_constants);
+    let pipeline = pipeline::default_pipeline(logical_device, render_pass, swapchain_extent, shaders, push_constants);
     (pipeline.0, pipeline.1, render_pass)
 }
 
@@ -222,9 +212,7 @@ pub struct SyncPrims{
     pub render_finished: SmallVec<vk::Semaphore>,
     pub in_flight: SmallVec<vk::Fence>,
 }
-pub fn create_sync_primitives(logical_device: &DeviceLoader)
--> SyncPrims {
-
+pub fn create_sync_primitives(logical_device: &DeviceLoader) -> SyncPrims {
     let mut image_available = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
     let mut render_finished = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
     let mut in_flight = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);

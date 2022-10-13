@@ -11,5 +11,4 @@ erupt = "0.22"
 shaderc = {version = "0.7", optional = true}
 
 [features]
-default = ["shaderc"]
-shaderc = ["dep:shaderc"]
+shader_compilation = ["dep:shaderc"]

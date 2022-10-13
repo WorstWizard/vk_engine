@@ -2,8 +2,8 @@ use std::ffi::CStr;
 use std::mem::size_of;
 use std::os::raw::c_char;
 use erupt::{vk, cstr, DeviceLoader};
-use super::shaders::{Shader, ShaderType}; //Would like to avoid using super, but it's the cleanest option with the current structure
-use super::Vert;
+use crate::shaders::{Shader, ShaderType};
+use super::Vert; //Would like to avoid using super, but it's the cleanest option with the current structure
 
 const DEFAULT_ENTRY: *const c_char = cstr!("main");
 
@@ -11,7 +11,7 @@ pub fn default_pipeline(
     logical_device: &DeviceLoader,
     render_pass: vk::RenderPass,
     swapchain_extent: vk::Extent2D,
-    shader_modules: Vec<(vk::ShaderModule, vk::PipelineShaderStageCreateInfoBuilder)>,
+    shaders: (Shader, Shader),
     push_constants: [f32; 1],
 ) -> (vk::Pipeline, vk::PipelineLayout) {
 
@@ -84,6 +84,7 @@ pub fn default_pipeline(
         .push_constant_ranges(&push_constant_ranges);
     let pipeline_layout = unsafe {logical_device.create_pipeline_layout(&pipeline_layout_info, None)}.unwrap();
 
+    let shader_modules = [create_shader_module(logical_device, shaders.0), create_shader_module(logical_device, shaders.1)];
 
     let shader_stages: Vec<vk::PipelineShaderStageCreateInfoBuilder> = shader_modules.iter().map(|pair| {pair.1}).collect();
     
@@ -101,7 +102,7 @@ pub fn default_pipeline(
     let graphics_pipeline = unsafe {logical_device.create_graphics_pipelines(vk::PipelineCache::null(), &graphics_pipeline_infos, None)}.unwrap()[0];
 
     //Once the graphics pipeline has been created, the SPIR-V bytecode is compiled into the pipeline itself
-    //The shader modules can therefore be destroyed already
+    //The shader modules can therefore already be destroyed
     unsafe {
         for module in shader_modules {
             logical_device.destroy_shader_module(module.0, None)
@@ -111,29 +112,7 @@ pub fn default_pipeline(
     (graphics_pipeline, pipeline_layout)
 }
 
-
-
-
-
-pub fn create_shader_module(logical_device: &DeviceLoader, shader: Shader) -> (vk::ShaderModule, vk::PipelineShaderStageCreateInfoBuilder) {
-    let entry_point = unsafe {CStr::from_ptr(DEFAULT_ENTRY)};
-    let shader_stage_flag = match shader.shader_type {
-        ShaderType::Vertex => vk::ShaderStageFlagBits::VERTEX,
-        ShaderType::Fragment => vk::ShaderStageFlagBits::FRAGMENT,
-    };
-
-    let decoded = &shader.data;
-    let shader_module_info = vk::ShaderModuleCreateInfoBuilder::new().code(decoded);
-    let shader_module = unsafe {logical_device.create_shader_module(&shader_module_info, None)}.unwrap();
-    let stage_info = vk::PipelineShaderStageCreateInfoBuilder::new()
-        .stage(shader_stage_flag)
-        .module(shader_module)
-        .name(entry_point);
-    
-    (shader_module, stage_info)
-}
-
-pub fn create_render_pass(logical_device: &DeviceLoader, image_format: vk::Format) -> vk::RenderPass {
+pub fn default_render_pass(logical_device: &DeviceLoader, image_format: vk::Format) -> vk::RenderPass {
     let color_attachments = [vk::AttachmentDescriptionBuilder::new()
         .format(image_format)
         .samples(vk::SampleCountFlagBits::_1)
@@ -164,4 +143,22 @@ pub fn create_render_pass(logical_device: &DeviceLoader, image_format: vk::Forma
         .dependencies(&dependencies);
     let renderpass = unsafe {logical_device.create_render_pass(&renderpass_info, None)}.expect("Failed to create renderpass!");
     renderpass
+}
+
+pub fn create_shader_module(logical_device: &DeviceLoader, shader: Shader) -> (vk::ShaderModule, vk::PipelineShaderStageCreateInfoBuilder) {
+    let entry_point = unsafe {CStr::from_ptr(DEFAULT_ENTRY)};
+    let shader_stage_flag = match shader.shader_type {
+        ShaderType::Vertex => vk::ShaderStageFlagBits::VERTEX,
+        ShaderType::Fragment => vk::ShaderStageFlagBits::FRAGMENT,
+    };
+
+    let decoded = &shader.data;
+    let shader_module_info = vk::ShaderModuleCreateInfoBuilder::new().code(decoded);
+    let shader_module = unsafe {logical_device.create_shader_module(&shader_module_info, None)}.unwrap();
+    let stage_info = vk::PipelineShaderStageCreateInfoBuilder::new()
+        .stage(shader_stage_flag)
+        .module(shader_module)
+        .name(entry_point);
+    
+    (shader_module, stage_info)
 }
