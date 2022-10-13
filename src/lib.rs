@@ -4,9 +4,6 @@
 
 //  Author: Kristian Knudsen
 
-pub mod engine_core;
-pub mod engine_app;
-
 use winit::window::{Window, WindowBuilder};
 use winit::event_loop::{EventLoop};
 
@@ -15,7 +12,10 @@ use std::mem::size_of;
 
 use erupt::vk;
 
-pub use engine_app::BaseApp;
+pub mod engine_core;
+pub mod application;
+pub mod shaders;
+pub use application::BaseApp;
 
 pub fn init_window(app_name: &str, width: u32, height: u32) -> (Window, EventLoop<()>) {
     let event_loop = EventLoop::new();
@@ -31,7 +31,7 @@ pub fn init_window(app_name: &str, width: u32, height: u32) -> (Window, EventLoo
 1. Sets the render area to the full swapchain extent and sets the (first) clear color to black
 2. Begins a render pass and binds the graphics pipeline to the graphics stage
 3. Runs `commands` closure
-4. Ends render pass **/
+4. Ends render pass */
 pub unsafe fn drawing_commands<F>(app: &mut BaseApp, index: usize, commands: F, push_constants: &[f32; 1])
     where F: FnOnce(&mut BaseApp, usize)
 {

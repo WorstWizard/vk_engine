@@ -5,12 +5,14 @@ use std::ffi::{CStr};
 use std::os::raw::{c_void, c_char};
 use std::collections::HashSet;
 use std::rc::Rc;
+use crate::shaders;
 
 mod phys_device;
 mod swapchain;
 mod pipeline;
-mod shaders;
 mod buffer;
+
+pub use buffer::ManagedBuffer;
 
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
 #[cfg(debug_assertions)]
@@ -22,8 +24,6 @@ pub const DEVICE_EXTS: [*const c_char; 1] = [vk::KHR_SWAPCHAIN_EXTENSION_NAME];
 pub const GRAPHICS_Q_IDX: usize = 0;
 pub const PRESENT_Q_IDX: usize = 1;
 pub const MAX_FRAMES_IN_FLIGHT: usize = 2;
-
-pub use buffer::ManagedBuffer;
 
 pub fn init_debug_messenger_info() -> vk::DebugUtilsMessengerCreateInfoEXTBuilder<'static> {
     let messenger_info = vk::DebugUtilsMessengerCreateInfoEXTBuilder::new()
