@@ -145,7 +145,7 @@ pub fn default_render_pass(logical_device: &DeviceLoader, image_format: vk::Form
     renderpass
 }
 
-pub fn create_shader_module(logical_device: &DeviceLoader, shader: Shader) -> (vk::ShaderModule, vk::PipelineShaderStageCreateInfoBuilder) {
+fn create_shader_module(logical_device: &DeviceLoader, shader: Shader) -> (vk::ShaderModule, vk::PipelineShaderStageCreateInfoBuilder) {
     let entry_point = unsafe {CStr::from_ptr(DEFAULT_ENTRY)};
     let shader_stage_flag = match shader.shader_type {
         ShaderType::Vertex => vk::ShaderStageFlagBits::VERTEX,

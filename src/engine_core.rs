@@ -13,7 +13,6 @@ mod pipeline;
 mod buffer;
 
 pub use buffer::ManagedBuffer;
-pub use pipeline::create_shader_module;
 
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
 #[cfg(debug_assertions)]
