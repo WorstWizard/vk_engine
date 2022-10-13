@@ -134,7 +134,8 @@ impl BaseApp {
     
         //// Command pool and buffers
         let command_pool_info = vk::CommandPoolCreateInfoBuilder::new()
-            .queue_family_index(queue_family_indices[engine_core::GRAPHICS_Q_IDX]);
+            .queue_family_index(queue_family_indices[engine_core::GRAPHICS_Q_IDX])
+            .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
         let command_pool = unsafe {logical_device.create_command_pool(&command_pool_info, None)}.expect("Could not create command pool!");
 
         let verts = vec![
@@ -193,34 +194,33 @@ impl BaseApp {
         }
     }
 
-    /** Iterates over each command buffer in the app, begins command buffer recording, runs the closure, then ends command buffer recording.
+    /** Begins command buffer recording, runs the closure, then ends command buffer recording.
     Anything *could* be put in the closure, but the intent is Vulkan commands.
     # Example:
     ```no_run
     unsafe {
-        base_app.record_command_buffers(|app, i| {
+        base_app.record_command_buffer(buf_index, |app| {
             app.device.cmd_bind_pipeline(
-                app.command_buffers[i],
+                app.command_buffers[buf_index],
                 vk::PipelineBindPoint::GRAPHICS,
                 app.graphics_pipeline
             );
         });
     }
     ``` */
-    pub unsafe fn record_command_buffers<F>(&mut self, commands: F)
-        where F: Fn(&mut BaseApp, usize)
+    pub unsafe fn record_command_buffer<F>(&mut self, buffer_index: usize, commands: F)
+        where F: Fn(&mut BaseApp)
     {
-        for i in 0..self.command_buffers.len() {
-            //Begin recording command buffer
-            let command_buffer_begin_info = vk::CommandBufferBeginInfoBuilder::new();
-            self.logical_device.begin_command_buffer(self.command_buffers[i], &command_buffer_begin_info).expect("Could not begin command buffer recording!");
+        //Begin recording command buffer
+        let command_buffer_begin_info = vk::CommandBufferBeginInfoBuilder::new();
+        self.logical_device.begin_command_buffer(self.command_buffers[buffer_index], &command_buffer_begin_info).expect("Could not begin command buffer recording!");
 
-            commands(self, i);
+        commands(self);
 
-            self.logical_device.end_command_buffer(self.command_buffers[i]).expect("Failed recording command buffer!");
-        }
+        self.logical_device.end_command_buffer(self.command_buffers[buffer_index]).expect("Failed recording command buffer!");        
     }
 
+    /*
     /// Frees the command buffers in the pool, then allocates an amount equal to the number of framebuffers.
     pub fn reallocate_command_buffers(&mut self) {
         unsafe {self.logical_device.free_command_buffers(self.command_pool, &self.command_buffers)};
@@ -231,6 +231,7 @@ impl BaseApp {
             .command_buffer_count(self.framebuffers.len() as u32);
         self.command_buffers = unsafe {self.logical_device.allocate_command_buffers(&command_buffer_allocate_info)}.expect("Could not create command buffers!");
     }
+    */
 
     /** Acquire index of image from the swapchain, signal semaphore once finished.
     If the error is of type `ERROR_OUT_OF_DATE_KHR`, the swapchain needs to be recreated before rendering can resume.

@@ -17,11 +17,14 @@ fn main() {
     let mut vulkan_app = BaseApp::new(window, APP_TITLE, shaders_loaded.clone());
 
     let mut push_constants = [0.0];
-    unsafe {vulkan_app.record_command_buffers(|app, i| {
-        vk_engine::drawing_commands(app, i, |app, i| {
-            app.logical_device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
-        }, &push_constants)
-    })};
+    for i in 0..vulkan_app.command_buffers.len() {
+        unsafe {vulkan_app.record_command_buffer(i, |app| {
+            vk_engine::drawing_commands(app, i, |app| {
+                app.logical_device.cmd_draw_indexed(app.command_buffers[i], 6, 1, 0, 0, 0);
+                //app.logical_device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
+            }, &push_constants);
+        })};
+    }
 
     let mut current_frame = 0;
     let mut timer = time::Instant::now();
@@ -59,6 +62,7 @@ fn main() {
                 //Wait for this frame's command buffer to finish execution (image presented)
                 let wait_fences = [vulkan_app.sync.in_flight[current_frame]];
                 unsafe {vulkan_app.logical_device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
+
                 // Acquire index of image from the swapchain, signal semaphore once finished
                 let image_index = match vulkan_app.acquire_next_image(current_frame) {
                     Ok(i) => i,
@@ -70,20 +74,18 @@ fn main() {
                 };
                 unsafe {vulkan_app.logical_device.reset_fences(&wait_fences)}.unwrap(); //Reset the corresponding fence
 
-
-                //Reallocate to get the new push constants in, lazy mans method
                 if zooming {
                     let time_delta = timer.elapsed();
                     push_constants[0] = (push_constants[0] + time_delta.as_secs_f32()*speed) % 2.0;//(2.0*3.1415926535);
-
-                    vulkan_app.reallocate_command_buffers();
-                    unsafe {vulkan_app.record_command_buffers(|app, i| {
-                        vk_engine::drawing_commands(app, i, |app, i| {
-                            app.logical_device.cmd_draw_indexed(app.command_buffers[i], 6, 1, 0, 0, 0);
-                            //app.logical_device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
-                        }, &push_constants);
-                    })};
                 }
+
+                unsafe {
+                    vulkan_app.record_command_buffer(image_index as usize, |app| {
+                    vk_engine::drawing_commands(app, image_index as usize, |app| {
+                        app.logical_device.cmd_draw_indexed(app.command_buffers[image_index as usize], 6, 1, 0, 0, 0);
+                        //app.logical_device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
+                    }, &push_constants);
+                })};
 
                 // Submit rendered image
                 let wait_sems = [vulkan_app.sync.image_available[current_frame]];
@@ -110,7 +112,7 @@ fn main() {
                 };
                 timer = time::Instant::now(); //Reset timer after frame is presented
 
-                current_frame = current_frame % vk_engine::engine_core::MAX_FRAMES_IN_FLIGHT;
+                current_frame = (current_frame + 1) % vk_engine::engine_core::MAX_FRAMES_IN_FLIGHT;
             },
             Event::RedrawRequested(_) => { //Conditionally redraw (OS might request this too)
             },

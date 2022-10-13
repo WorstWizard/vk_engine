@@ -32,13 +32,13 @@ pub fn init_window(app_name: &str, width: u32, height: u32) -> (Window, EventLoo
     (window, event_loop)
 }
 
-/** For use inside [`BaseApp::record_command_buffers`]. Will cover most common use cases for drawing:
+/** For use inside [`BaseApp::record_command_buffer`]. Will cover most common use cases for drawing:
 1. Sets the render area to the full swapchain extent and sets the (first) clear color to black
 2. Begins a render pass and binds the graphics pipeline to the graphics stage
 3. Runs `commands` closure
 4. Ends render pass */
-pub unsafe fn drawing_commands<F>(app: &mut BaseApp, index: usize, commands: F, push_constants: &[f32; 1])
-    where F: FnOnce(&mut BaseApp, usize)
+pub unsafe fn drawing_commands<F>(app: &mut BaseApp, buffer_index: usize, commands: F, push_constants: &[f32; 1])
+    where F: FnOnce(&mut BaseApp)
 {
     //Start render pass
     let render_area = vk::Rect2DBuilder::new()
@@ -47,19 +47,19 @@ pub unsafe fn drawing_commands<F>(app: &mut BaseApp, index: usize, commands: F, 
     let mut clear_color = [vk::ClearValue::default()]; clear_color[0].color.float32 = [0.0, 0.0, 0.0, 1.0];
     let renderpass_begin_info = vk::RenderPassBeginInfoBuilder::new()
         .render_pass(app.render_pass)
-        .framebuffer(app.framebuffers[index])
+        .framebuffer(app.framebuffers[buffer_index])
         .render_area(*render_area)
         .clear_values(&clear_color);
-    app.logical_device.cmd_begin_render_pass(app.command_buffers[index], &renderpass_begin_info, vk::SubpassContents::INLINE);
-    app.logical_device.cmd_bind_pipeline(app.command_buffers[index], vk::PipelineBindPoint::GRAPHICS, app.graphics_pipeline);
-    app.logical_device.cmd_push_constants(app.command_buffers[index], app.graphics_pipeline_layout, vk::ShaderStageFlags::VERTEX, 0, (push_constants.len()*size_of::<f32>()) as u32, push_constants.as_ptr() as *const c_void);
+    app.logical_device.cmd_begin_render_pass(app.command_buffers[buffer_index], &renderpass_begin_info, vk::SubpassContents::INLINE);
+    app.logical_device.cmd_bind_pipeline(app.command_buffers[buffer_index], vk::PipelineBindPoint::GRAPHICS, app.graphics_pipeline);
+    app.logical_device.cmd_push_constants(app.command_buffers[buffer_index], app.graphics_pipeline_layout, vk::ShaderStageFlags::VERTEX, 0, (push_constants.len()*size_of::<f32>()) as u32, push_constants.as_ptr() as *const c_void);
     let vertex_buffers = [app.vertex_buffer.buffer];
     let offsets = [0];
-    app.logical_device.cmd_bind_vertex_buffers(app.command_buffers[index], 0, &vertex_buffers, &offsets);
-    app.logical_device.cmd_bind_index_buffer(app.command_buffers[index], app.index_buffer.buffer, 0, vk::IndexType::UINT16);
+    app.logical_device.cmd_bind_vertex_buffers(app.command_buffers[buffer_index], 0, &vertex_buffers, &offsets);
+    app.logical_device.cmd_bind_index_buffer(app.command_buffers[buffer_index], app.index_buffer.buffer, 0, vk::IndexType::UINT16);
 
-    commands(app, index);
+    commands(app);
 
     //End the render pass
-    app.logical_device.cmd_end_render_pass(app.command_buffers[index]);    
+    app.logical_device.cmd_end_render_pass(app.command_buffers[buffer_index]);    
 }
