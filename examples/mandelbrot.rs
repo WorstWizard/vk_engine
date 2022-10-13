@@ -11,8 +11,8 @@ const APP_TITLE: &str = "KK Engine Test App";
 fn main() {
     let (window, event_loop) = init_window(APP_TITLE, 1000, 1000);
     let shaders_loaded = (
-        vk_engine::shaders::load_shader("shaders_compiled/mandelbrot.vert.spv", vk_engine::shaders::ShaderType::Vertex).unwrap(),
-        vk_engine::shaders::load_shader("shaders_compiled/mandelbrot.frag.spv", vk_engine::shaders::ShaderType::Fragment).unwrap(),
+        vk_engine::shaders::load_shader("examples/shaders_compiled/mandelbrot.vert.spv", vk_engine::shaders::ShaderType::Vertex).unwrap(),
+        vk_engine::shaders::load_shader("examples/shaders_compiled/mandelbrot.frag.spv", vk_engine::shaders::ShaderType::Fragment).unwrap(),
     );
     let mut vulkan_app = BaseApp::new(window, APP_TITLE, shaders_loaded.clone());
 
