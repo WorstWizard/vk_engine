@@ -16,17 +16,12 @@ fn main() {
     );
     let mut vulkan_app = BaseApp::new(window, APP_TITLE, shaders_loaded.clone());
 
-    let mut push_constants = [0.0];
-    for i in 0..vulkan_app.command_buffers.len() {
-        unsafe {vulkan_app.record_command_buffer(i, |app| {
-            vk_engine::drawing_commands(app, i, |app| {
-                app.logical_device.cmd_draw_indexed(app.command_buffers[i], 6, 1, 0, 0, 0);
-                //app.logical_device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
-            }, &push_constants);
-        })};
-    }
-
+    //Tracks which frame the CPU is currently writing commands for
+    //*Not* a framecounter, this value is mod MAX_FRAMES_IN_FLIGHT
     let mut current_frame = 0;
+
+    //For the animation
+    let mut push_constants = [0.0];
     let mut timer = time::Instant::now();
     let speed = 0.1;
     let mut zooming = true;
@@ -74,45 +69,35 @@ fn main() {
                 };
                 unsafe {vulkan_app.logical_device.reset_fences(&wait_fences)}.unwrap(); //Reset the corresponding fence
 
+                // Change time constant if zooming is enabled
                 if zooming {
                     let time_delta = timer.elapsed();
                     push_constants[0] = (push_constants[0] + time_delta.as_secs_f32()*speed) % 2.0;//(2.0*3.1415926535);
                 }
 
+                // Record drawing commands into command buffer for current frame
                 unsafe {
-                    vulkan_app.record_command_buffer(image_index as usize, |app| {
-                    vk_engine::drawing_commands(app, image_index as usize, |app| {
-                        app.logical_device.cmd_draw_indexed(app.command_buffers[image_index as usize], 6, 1, 0, 0, 0);
-                        //app.logical_device.cmd_draw(app.command_buffers[i], 4, 1, 0, 0);
+                    vulkan_app.record_command_buffer(current_frame, |app| {
+                    vk_engine::drawing_commands(app, current_frame, image_index, |app| {
+                        app.logical_device.cmd_draw_indexed(app.command_buffers[current_frame], 6, 1, 0, 0, 0);
                     }, &push_constants);
                 })};
 
-                // Submit rendered image
-                let wait_sems = [vulkan_app.sync.image_available[current_frame]];
-                let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-                let signal_sems = [vulkan_app.sync.render_finished[current_frame]];
-                let cmd_buffers = [vulkan_app.command_buffers[image_index as usize]];
-                let submits = [vk::SubmitInfoBuilder::new()
-                    .wait_semaphores(&wait_sems)
-                    .wait_dst_stage_mask(&wait_stages)
-                    .command_buffers(&cmd_buffers)
-                    .signal_semaphores(&signal_sems)];
-                unsafe {
-                    vulkan_app.logical_device.queue_submit(vulkan_app.graphics_queue, &submits, vulkan_app.sync.in_flight[current_frame]).expect("Queue submission failed!");
-                }
+                // Submit commands to render image
+                vulkan_app.submit_drawing_command_buffer(current_frame);
 
                 // Present rendered image to the swap chain such that it will show up on screen
-                match vulkan_app.present_image(image_index, signal_sems) {
-                    Ok(()) => (),
+                match vulkan_app.present_image(image_index, vulkan_app.sync.render_finished[current_frame]) {
+                    Ok(_) => (),
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         vulkan_app.recreate_swapchain(shaders_loaded.clone());
                         return
                     },
                     _ => panic!("Could not present image!")
                 };
-                timer = time::Instant::now(); //Reset timer after frame is presented
 
-                current_frame = (current_frame + 1) % vk_engine::engine_core::MAX_FRAMES_IN_FLIGHT;
+                timer = time::Instant::now(); //Reset timer after frame is presented
+                current_frame = (current_frame + 1) % vk_engine::engine_core::MAX_FRAMES_IN_FLIGHT; //Advance to next frame
             },
             Event::RedrawRequested(_) => { //Conditionally redraw (OS might request this too)
             },

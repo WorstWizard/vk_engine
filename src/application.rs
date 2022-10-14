@@ -252,6 +252,26 @@ impl BaseApp {
         }
     }
 
+    /** 
+    Submits the command buffer at `buffer_index` to the graphics queue, waiting for a swapchain image:`self.sync.image_available[buffer_index]`.
+    Waits for the `COLOR_ATTACHMENT_OUTPUT` stage, then executes commands. Once the image has been drawn, `self.sync.render_finished[buffer_index]` is signaled,
+    and the `self.sync.in_flight[buffer_index]` fence is signaled.
+    */
+    pub fn submit_drawing_command_buffer(&self, buffer_index: usize) {
+        let wait_sems = [self.sync.image_available[buffer_index]];
+        let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
+        let signal_sems = [self.sync.render_finished[buffer_index]];
+        let cmd_buffers = [self.command_buffers[buffer_index as usize]];
+        let submits = [vk::SubmitInfoBuilder::new()
+            .wait_semaphores(&wait_sems)
+            .wait_dst_stage_mask(&wait_stages)
+            .command_buffers(&cmd_buffers)
+            .signal_semaphores(&signal_sems)];
+        unsafe {
+            self.logical_device.queue_submit(self.graphics_queue, &submits, self.sync.in_flight[buffer_index]).expect("Queue submission failed!");
+        }
+    }
+
     /** Queues up the image at `image_index` for presentation to the window surface.
     Signals the given semaphore once the image has been presented.
     If the error is of type `ERROR_OUT_OF_DATE_KHR`, the swapchain needs to be recreated before rendering can resume.
@@ -267,13 +287,14 @@ impl BaseApp {
         _ => panic!("Could not present image!")
     };
     ``` */
-    pub fn present_image(&self, image_index: u32, signal_semaphore: [vk::Semaphore; 1]) -> Result<(), vk::Result> {
-        let swapchains = [self.swapchain];
-        let image_indices = [image_index];
+    pub fn present_image(&self, image_index: u32, signal_semaphore: vk::Semaphore) -> Result<(), vk::Result> {
+        let swapchain_arr = [self.swapchain];
+        let image_index_arr = [image_index];
+        let signal_semaphore_arr = [signal_semaphore];
         let present_info = vk::PresentInfoKHRBuilder::new()
-            .wait_semaphores(&signal_semaphore)
-            .swapchains(&swapchains)
-            .image_indices(&image_indices);
+            .wait_semaphores(&signal_semaphore_arr)
+            .swapchains(&swapchain_arr)
+            .image_indices(&image_index_arr);
         unsafe {
             self.logical_device.queue_present_khr(self.present_queue, &present_info).result()
         }

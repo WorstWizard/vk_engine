@@ -37,7 +37,7 @@ pub fn init_window(app_name: &str, width: u32, height: u32) -> (Window, EventLoo
 2. Begins a render pass and binds the graphics pipeline to the graphics stage
 3. Runs `commands` closure
 4. Ends render pass */
-pub unsafe fn drawing_commands<F>(app: &mut BaseApp, buffer_index: usize, commands: F, push_constants: &[f32; 1])
+pub unsafe fn drawing_commands<F>(app: &mut BaseApp, buffer_index: usize, swapchain_image_index: u32, commands: F, push_constants: &[f32; 1])
     where F: FnOnce(&mut BaseApp)
 {
     //Start render pass
@@ -47,7 +47,7 @@ pub unsafe fn drawing_commands<F>(app: &mut BaseApp, buffer_index: usize, comman
     let mut clear_color = [vk::ClearValue::default()]; clear_color[0].color.float32 = [0.0, 0.0, 0.0, 1.0];
     let renderpass_begin_info = vk::RenderPassBeginInfoBuilder::new()
         .render_pass(app.render_pass)
-        .framebuffer(app.framebuffers[buffer_index])
+        .framebuffer(app.framebuffers[swapchain_image_index as usize])
         .render_area(*render_area)
         .clear_values(&clear_color);
     app.logical_device.cmd_begin_render_pass(app.command_buffers[buffer_index], &renderpass_begin_info, vk::SubpassContents::INLINE);
