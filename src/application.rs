@@ -213,13 +213,16 @@ impl BaseApp {
         }
     }
 
-    /**
-    Blocks host execution, waiting for the fence at `self.sync.in_flight[fence_index]` to be signaled. No timeout.
-    */
+    /// Blocks host execution, waiting for the fence at `self.sync.in_flight[fence_index]` to be signaled. No timeout.
     pub fn wait_for_in_flight_fence(&self, fence_index: usize) {
         let wait_fences = [self.sync.in_flight[fence_index]];
         unsafe {self.logical_device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
-        unsafe {self.logical_device.reset_fences(&wait_fences)}.unwrap(); //Reset the corresponding fence
+    }
+
+    /// Resets fence at `self.sync.in_flight[fence_index]`. No timeout.
+    pub fn reset_in_flight_fence(&self, fence_index: usize) {
+        let wait_fences = [self.sync.in_flight[fence_index]];
+        unsafe {self.logical_device.reset_fences(&wait_fences)}.unwrap();
     }
 
     /** Begins command buffer recording, runs the closure, then ends command buffer recording.
@@ -261,11 +264,9 @@ impl BaseApp {
     }
     */
 
-    /** 
-    Submits the command buffer at `buffer_index` to the graphics queue, waiting for a swapchain image:`self.sync.image_available[buffer_index]`.
+    /** Submits the command buffer at `buffer_index` to the graphics queue, waiting for a swapchain image:`self.sync.image_available[buffer_index]`.
     Waits for the `COLOR_ATTACHMENT_OUTPUT` stage, then executes commands. Once the image has been drawn, `self.sync.render_finished[buffer_index]` is signaled,
-    and the `self.sync.in_flight[buffer_index]` fence is signaled.
-    */
+    and the `self.sync.in_flight[buffer_index]` fence is signaled. */
     pub fn submit_drawing_command_buffer(&self, buffer_index: usize) {
         let wait_sems = [self.sync.image_available[buffer_index]];
         let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];

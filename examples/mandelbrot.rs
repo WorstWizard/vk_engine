@@ -66,6 +66,9 @@ fn main() {
                     _ => panic!("Could not acquire image from swapchain!")
                 };
 
+                // Reset fence. This is done now, as if the swapchain is outdated, it causes an early return to the event loop
+                vulkan_app.reset_in_flight_fence(current_frame);
+
                 // Change time constant if zooming is enabled
                 if zooming {
                     let time_delta = timer.elapsed();
