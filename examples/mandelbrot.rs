@@ -51,28 +51,25 @@ fn main() {
                 },
                 _ => (),
             },
-            Event::MainEventsCleared => { //Main body
-                //If drawing continously, put rendering code here directly
+            Event::MainEventsCleared => { // Main body
                 
-                //Wait for this frame's command buffer to finish execution (image presented)
-                let wait_fences = [vulkan_app.sync.in_flight[current_frame]];
-                unsafe {vulkan_app.logical_device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
+                // Wait for this frame's command buffer to finish execution (image presented)
+                vulkan_app.wait_for_in_flight_fence(current_frame);
 
                 // Acquire index of image from the swapchain, signal semaphore once finished
                 let image_index = match vulkan_app.acquire_next_image(current_frame) {
                     Ok(i) => i,
-                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
+                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => { //Swapchain is outdated, recreate it before continuing
                         vulkan_app.recreate_swapchain(shaders_loaded.clone());
                         return
                     },
                     _ => panic!("Could not acquire image from swapchain!")
                 };
-                unsafe {vulkan_app.logical_device.reset_fences(&wait_fences)}.unwrap(); //Reset the corresponding fence
 
                 // Change time constant if zooming is enabled
                 if zooming {
                     let time_delta = timer.elapsed();
-                    push_constants[0] = (push_constants[0] + time_delta.as_secs_f32()*speed) % 2.0;//(2.0*3.1415926535);
+                    push_constants[0] = (push_constants[0] + time_delta.as_secs_f32()*speed) % 2.0;
                 }
 
                 // Record drawing commands into command buffer for current frame
@@ -89,7 +86,7 @@ fn main() {
                 // Present rendered image to the swap chain such that it will show up on screen
                 match vulkan_app.present_image(image_index, vulkan_app.sync.render_finished[current_frame]) {
                     Ok(_) => (),
-                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
+                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => { //Swapchain might be outdated again
                         vulkan_app.recreate_swapchain(shaders_loaded.clone());
                         return
                     },

@@ -194,10 +194,38 @@ impl BaseApp {
         }
     }
 
+    /** Acquire index of image from the swapchain, signal semaphore once finished.
+    If the error is of type `ERROR_OUT_OF_DATE_KHR`, the swapchain needs to be recreated before rendering can resume.
+    # Example:
+    ```ignore
+    let image_index = match app.acquire_next_image(frame_idx) {
+        Ok(i) => i,
+        Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
+            app.recreate_swapchain();
+            return
+        },
+        _ => panic!("Could not acquire image from swapchain!")
+    };
+    ``` */
+    pub fn acquire_next_image(&mut self, framebuffer_index: usize) -> Result<u32, vk::Result> {
+        unsafe {
+            self.logical_device.acquire_next_image_khr(self.swapchain, u64::MAX, self.sync.image_available[framebuffer_index], vk::Fence::null()).result()
+        }
+    }
+
+    /**
+    Blocks host execution, waiting for the fence at `self.sync.in_flight[fence_index]` to be signaled. No timeout.
+    */
+    pub fn wait_for_in_flight_fence(&self, fence_index: usize) {
+        let wait_fences = [self.sync.in_flight[fence_index]];
+        unsafe {self.logical_device.wait_for_fences(&wait_fences, true, u64::MAX)}.unwrap();
+        unsafe {self.logical_device.reset_fences(&wait_fences)}.unwrap(); //Reset the corresponding fence
+    }
+
     /** Begins command buffer recording, runs the closure, then ends command buffer recording.
     Anything *could* be put in the closure, but the intent is Vulkan commands.
     # Example:
-    ```no_run
+    ```ignore
     unsafe {
         base_app.record_command_buffer(buf_index, |app| {
             app.device.cmd_bind_pipeline(
@@ -233,25 +261,6 @@ impl BaseApp {
     }
     */
 
-    /** Acquire index of image from the swapchain, signal semaphore once finished.
-    If the error is of type `ERROR_OUT_OF_DATE_KHR`, the swapchain needs to be recreated before rendering can resume.
-    # Example:
-    ```
-    let image_index = match app.acquire_next_image(frame_idx) {
-        Ok(i) => i,
-        Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-            app.recreate_swapchain();
-            return
-        },
-        _ => panic!("Could not acquire image from swapchain!")
-    };
-    ``` */
-    pub fn acquire_next_image(&mut self, framebuffer_index: usize) -> Result<u32, vk::Result> {
-        unsafe {
-            self.logical_device.acquire_next_image_khr(self.swapchain, u64::MAX, self.sync.image_available[framebuffer_index], vk::Fence::null()).result()
-        }
-    }
-
     /** 
     Submits the command buffer at `buffer_index` to the graphics queue, waiting for a swapchain image:`self.sync.image_available[buffer_index]`.
     Waits for the `COLOR_ATTACHMENT_OUTPUT` stage, then executes commands. Once the image has been drawn, `self.sync.render_finished[buffer_index]` is signaled,
@@ -277,7 +286,7 @@ impl BaseApp {
     If the error is of type `ERROR_OUT_OF_DATE_KHR`, the swapchain needs to be recreated before rendering can resume.
     Recommended to recreate the swapchain also if the error is type `SUBOPTIMAL_KHR`
     # Example:
-    ```
+    ```ignore
     match vulkan_app.present_image(image_index, signal_sems) {
     Ok(()) => (),
     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
