@@ -17,11 +17,21 @@ use std::mem::size_of;
 
 use erupt::vk;
 
+/// Core functionality used to build the [`BaseApp`],
+/// can be used as shortcuts for custom Vulkan applications where [`BaseApp`] cannot be extended to cover needs.
 pub mod engine_core;
+
+#[doc(hidden)]
 pub mod application;
+
+/// Managing shaders
 pub mod shaders;
+
+#[doc(inline)]
 pub use application::BaseApp;
 
+
+/// Quick initialization of a window
 pub fn init_window(app_name: &str, width: u32, height: u32) -> (Window, EventLoop<()>) {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
