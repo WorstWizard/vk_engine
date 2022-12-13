@@ -1,10 +1,11 @@
 use winit::window::Window;
-use erupt::{vk, EntryLoader, InstanceLoader, DeviceLoader, SmallVec};
-use erupt::cstr;
-use std::ffi::{CStr};
+use ash::{vk, Entry, Instance, Device};
+use ash::extensions::khr::{Swapchain, Surface};
+use std::ffi::CStr;
 use std::os::raw::{c_void, c_char};
 use std::collections::HashSet;
 use std::rc::Rc;
+use cstr::cstr;
 use crate::shaders;
 
 mod phys_device;
@@ -13,35 +14,36 @@ mod pipeline;
 mod buffer;
 
 pub use buffer::ManagedBuffer;
-
-pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation")];
+//["VK_LAYER_KHRONOS_validation\0" as *const str as *const [c_char] as *const c_char];
+pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation").as_ptr()];
 #[cfg(debug_assertions)]
 pub const VALIDATION_ENABLED: bool = true;
 #[cfg(not(debug_assertions))]
 pub const VALIDATION_ENABLED: bool = false;
 
-pub const DEVICE_EXTS: [*const c_char; 1] = [vk::KHR_SWAPCHAIN_EXTENSION_NAME];
+pub const DEVICE_EXTS: [*const c_char; 1] = [Swapchain::name().as_ptr()];
 pub const GRAPHICS_Q_IDX: usize = 0;
 pub const PRESENT_Q_IDX: usize = 1;
 pub const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
 pub fn init_debug_messenger_info() -> vk::DebugUtilsMessengerCreateInfoEXTBuilder<'static> {
-    let messenger_info = vk::DebugUtilsMessengerCreateInfoEXTBuilder::new()
+    let messenger_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
     .message_severity(
         //vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE_EXT |
-        vk::DebugUtilsMessageSeverityFlagsEXT::WARNING_EXT |
-        vk::DebugUtilsMessageSeverityFlagsEXT::ERROR_EXT
+        vk::DebugUtilsMessageSeverityFlagsEXT::WARNING |
+        vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
     )
     .message_type(
-        vk::DebugUtilsMessageTypeFlagsEXT::GENERAL_EXT |
-        vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION_EXT |
-        vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE_EXT
+        vk::DebugUtilsMessageTypeFlagsEXT::GENERAL |
+        vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION |
+        vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
     )
     .pfn_user_callback(Some(debug_callback));
+
     messenger_info
 }
 unsafe extern "system" fn debug_callback(
-    _message_severity: vk::DebugUtilsMessageSeverityFlagBitsEXT,
+    _message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
     _message_type: vk::DebugUtilsMessageTypeFlagsEXT,
     p_callback_data: *const vk::DebugUtilsMessengerCallbackDataEXT,
     _p_user_data: *mut c_void
@@ -50,8 +52,8 @@ unsafe extern "system" fn debug_callback(
     vk::FALSE
 }
 
-pub fn check_validation_layer_support(entry: &EntryLoader) -> bool{
-    let available_layers = unsafe {entry.enumerate_instance_layer_properties(None).unwrap()};
+pub fn check_validation_layer_support(entry: &Entry) -> bool{
+    let available_layers = entry.enumerate_instance_layer_properties().unwrap();
     for layer in &VALIDATION_LAYERS {
         let mut found = false;
         for layer_properties in &available_layers {
@@ -68,67 +70,70 @@ pub fn check_validation_layer_support(entry: &EntryLoader) -> bool{
     return true
 }
 
-pub fn find_physical_device(instance: &InstanceLoader, surface: &vk::SurfaceKHR) -> (vk::PhysicalDevice, [u32;2]) {
-    let devices = unsafe {instance.enumerate_physical_devices(None)}.unwrap();
+pub fn find_physical_device(instance: &Instance, surface_loader: &Surface, surface: &vk::SurfaceKHR) -> (vk::PhysicalDevice, [u32;2]) {
+    let devices = unsafe {instance.enumerate_physical_devices()}.unwrap();
     if devices.len() == 0 {panic!("No devices with Vulkan support!")}
 
     let mut suitability = 0;
     let physical_device = devices.into_iter().max_by_key(
     |device| {
-        suitability = phys_device::device_suitability(instance, surface, &device)
+        suitability = phys_device::device_suitability(instance, surface_loader, surface, &device)
     }
     ).expect("No suitable GPU could be found!");
     if suitability <= 0 {panic!("No suitable GPU could be found!")}
 
-    let queue_family_indices = phys_device::find_queue_families(instance, surface, &physical_device).unwrap(); //Checked in device_suitabiliy, so will always succeed
+    let queue_family_indices = phys_device::find_queue_families(instance, surface_loader, surface, &physical_device).unwrap(); //Checked in device_suitabiliy, so will always succeed
     (physical_device, queue_family_indices)
 }
 
-pub fn create_logical_device(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, queue_family_indices: [u32; 2]) -> Rc<DeviceLoader> {
+pub fn create_logical_device(instance: &Instance, physical_device: &vk::PhysicalDevice, queue_family_indices: [u32; 2]) -> Rc<Device> {
     let unique_queue_family_indices: Vec<u32> = HashSet::from(queue_family_indices).into_iter().collect();
-    let device_queue_infos: &[vk::DeviceQueueCreateInfoBuilder] = &unique_queue_family_indices.into_iter().map(|index| {
-        vk::DeviceQueueCreateInfoBuilder::new()
+    let device_queue_infos: &[vk::DeviceQueueCreateInfo] = &unique_queue_family_indices.into_iter().map(|index| {
+        vk::DeviceQueueCreateInfo::builder()
         .queue_family_index(index)
         .queue_priorities(&[1.0])
-    }).collect::<Vec<vk::DeviceQueueCreateInfoBuilder>>().into_boxed_slice();
+        .build()
+    }).collect::<Vec<vk::DeviceQueueCreateInfo>>().into_boxed_slice();
     
     let device_features = vk::PhysicalDeviceFeatures::default();
-    let mut device_create_info = vk::DeviceCreateInfoBuilder::new()
+    let mut device_create_info = vk::DeviceCreateInfo::builder()
         .queue_create_infos(device_queue_infos)
         .enabled_features(&device_features)
         .enabled_extension_names(&DEVICE_EXTS);
     if VALIDATION_ENABLED {
         device_create_info = device_create_info.enabled_layer_names(&VALIDATION_LAYERS);
     }
-    let logical_device = Rc::new(unsafe {DeviceLoader::new(&instance, *physical_device, &device_create_info)}.expect("Failed to create logical device!"));
+    let logical_device = Rc::new(unsafe {
+        instance.create_device(*physical_device, &device_create_info, None)
+    }.expect("Failed to create logical device!"));
     logical_device
 }
 
-pub fn get_queue_handles(logical_device: &DeviceLoader, queue_family_indices: [u32; 2]) -> (vk::Queue, vk::Queue) {
+pub fn get_queue_handles(logical_device: &Device, queue_family_indices: [u32; 2]) -> (vk::Queue, vk::Queue) {
     let graphics_queue = unsafe {logical_device.get_device_queue(queue_family_indices[GRAPHICS_Q_IDX], 0)};
     let present_queue = unsafe {logical_device.get_device_queue(queue_family_indices[PRESENT_Q_IDX], 0)};
     (graphics_queue, present_queue)
 }
 
 pub fn create_swapchain(
-    instance: &InstanceLoader,
     window: &Window,
+    surface_loader: &Surface,
     surface: &vk::SurfaceKHR,
     physical_device: &vk::PhysicalDevice,
-    logical_device: &DeviceLoader,
+    swapchain_loader: &Swapchain,
     queue_family_indices: [u32; 2]
-) -> (vk::SwapchainKHR, vk::Format, vk::Extent2D, erupt::SmallVec<vk::Image>) {
+) -> (vk::SwapchainKHR, vk::Format, vk::Extent2D, Vec<vk::Image>) {
 
-    let (surface_capabilities, formats, present_modes) = phys_device::query_swap_chain_support(instance, surface, physical_device);
+    let (surface_capabilities, formats, present_modes) = phys_device::query_swap_chain_support(surface_loader, surface, physical_device);
     let surface_format = swapchain::choose_swap_surface_format(&formats);
-    let present_mode = swapchain::choose_swap_present_mode(&present_modes, vk::PresentModeKHR::MAILBOX_KHR);
+    let present_mode = swapchain::choose_swap_present_mode(&present_modes, vk::PresentModeKHR::MAILBOX);
     let swap_extent = swapchain::choose_swap_extent(window, &surface_capabilities);
     let image_count = { //Pick smaller value between minimum + 1 and the maximum
         let mut count = surface_capabilities.min_image_count + 1;
         if surface_capabilities.max_image_count > 0 && count > surface_capabilities.max_image_count {count = surface_capabilities.max_image_count}
         count
     };
-    let mut swapchain_info = vk::SwapchainCreateInfoKHRBuilder::new()
+    let mut swapchain_info = vk::SwapchainCreateInfoKHR::builder()
         //Defined from above values v v v
         .surface(*surface)
         .min_image_count(image_count)
@@ -139,7 +144,7 @@ pub fn create_swapchain(
         //Should never change v v v
         .image_array_layers(1)
         .pre_transform(surface_capabilities.current_transform)
-        .composite_alpha(vk::CompositeAlphaFlagBitsKHR::OPAQUE_KHR)
+        .composite_alpha(vk::CompositeAlphaFlagsKHR::OPAQUE)
         .clipped(true)
         //Might change depending on use case v v v
         .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT);
@@ -149,18 +154,20 @@ pub fn create_swapchain(
     } else {
         swapchain_info = swapchain_info.image_sharing_mode(vk::SharingMode::EXCLUSIVE);
     }
-    let swapchain = unsafe {logical_device.create_swapchain_khr(&swapchain_info, None)}.expect("Could not create swapchain!");
-    let swapchain_images = unsafe {logical_device.get_swapchain_images_khr(swapchain, None)}.unwrap();
+    let swapchain = unsafe {
+        swapchain_loader.create_swapchain(&swapchain_info, None)
+    }.expect("Could not create swapchain!");
+    let swapchain_images = unsafe {swapchain_loader.get_swapchain_images(swapchain)}.unwrap();
 
     (swapchain, surface_format.format, swap_extent, swapchain_images)
 }
 
-pub fn create_image_views(logical_device: &DeviceLoader, swapchain_images: &erupt::SmallVec<vk::Image>, image_format: vk::Format) -> Vec<vk::ImageView> {
+pub fn create_image_views(logical_device: &Device, swapchain_images: &Vec<vk::Image>, image_format: vk::Format) -> Vec<vk::ImageView> {
     let mut image_views = Vec::new();
     for i in 0..swapchain_images.len() {
-        let image_view_info = vk::ImageViewCreateInfoBuilder::new()
+        let image_view_info = vk::ImageViewCreateInfo::builder()
             .image(swapchain_images[i])
-            .view_type(vk::ImageViewType::_2D)
+            .view_type(vk::ImageViewType::TYPE_2D)
             .format(image_format)
             .components(vk::ComponentMapping{
                 r: vk::ComponentSwizzle::IDENTITY,
@@ -181,19 +188,19 @@ pub fn create_image_views(logical_device: &DeviceLoader, swapchain_images: &erup
     image_views
 }
 
-pub fn create_graphics_pipeline(logical_device: &DeviceLoader, swapchain_extent: vk::Extent2D, image_format: vk::Format, shaders: (shaders::Shader, shaders::Shader), push_constants: [f32; 1]) -> (vk::Pipeline, vk::PipelineLayout, vk::RenderPass) {
+pub fn create_graphics_pipeline(logical_device: &Device, swapchain_extent: vk::Extent2D, image_format: vk::Format, shaders: (shaders::Shader, shaders::Shader), push_constants: [f32; 1]) -> (vk::Pipeline, vk::PipelineLayout, vk::RenderPass) {
     let render_pass = pipeline::default_render_pass(logical_device, image_format);
 
     let pipeline = pipeline::default_pipeline(logical_device, render_pass, swapchain_extent, shaders, push_constants);
     (pipeline.0, pipeline.1, render_pass)
 }
 
-pub fn create_framebuffers(logical_device: &DeviceLoader, render_pass: vk::RenderPass, swapchain_extent: vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
+pub fn create_framebuffers(logical_device: &Device, render_pass: vk::RenderPass, swapchain_extent: vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
     let mut swapchain_framebuffers = Vec::new();
     for i in 0..image_views.len() {
         let attachments = [image_views[i]];
 
-        let framebuffer_info = vk::FramebufferCreateInfoBuilder::new()
+        let framebuffer_info = vk::FramebufferCreateInfo::builder()
             .render_pass(render_pass)
             .attachments(&attachments)
             .width(swapchain_extent.width)
@@ -207,26 +214,26 @@ pub fn create_framebuffers(logical_device: &DeviceLoader, render_pass: vk::Rende
 }
 
 pub struct SyncPrims{
-    pub image_available: SmallVec<vk::Semaphore>,
-    pub render_finished: SmallVec<vk::Semaphore>,
-    pub in_flight: SmallVec<vk::Fence>,
+    pub image_available: Vec<vk::Semaphore>,
+    pub render_finished: Vec<vk::Semaphore>,
+    pub in_flight: Vec<vk::Fence>,
 }
-pub fn create_sync_primitives(logical_device: &DeviceLoader) -> SyncPrims {
-    let mut image_available = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
-    let mut render_finished = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
-    let mut in_flight = SmallVec::with_capacity(MAX_FRAMES_IN_FLIGHT);
+pub fn create_sync_primitives(logical_device: &Device) -> SyncPrims {
+    let mut image_available = Vec::with_capacity(MAX_FRAMES_IN_FLIGHT);
+    let mut render_finished = Vec::with_capacity(MAX_FRAMES_IN_FLIGHT);
+    let mut in_flight = Vec::with_capacity(MAX_FRAMES_IN_FLIGHT);
     unsafe {
         for _ in 0..MAX_FRAMES_IN_FLIGHT {
-            image_available.push(logical_device.create_semaphore(&vk::SemaphoreCreateInfoBuilder::new(), None).unwrap());
-            render_finished.push(logical_device.create_semaphore(&vk::SemaphoreCreateInfoBuilder::new(), None).unwrap());
-            in_flight.push(logical_device.create_fence(&vk::FenceCreateInfoBuilder::new().flags(vk::FenceCreateFlags::SIGNALED), None).unwrap());
+            image_available.push(logical_device.create_semaphore(&vk::SemaphoreCreateInfo::builder(), None).unwrap());
+            render_finished.push(logical_device.create_semaphore(&vk::SemaphoreCreateInfo::builder(), None).unwrap());
+            in_flight.push(logical_device.create_fence(&vk::FenceCreateInfo::builder().flags(vk::FenceCreateFlags::SIGNALED), None).unwrap());
         }
     }
     SyncPrims{ image_available, render_finished, in_flight }
 }
 
-pub fn allocate_command_buffers(logical_device: &DeviceLoader, command_pool: vk::CommandPool, amount: u32) -> SmallVec<vk::CommandBuffer> {
-    let command_buffer_allocate_info = vk::CommandBufferAllocateInfoBuilder::new()
+pub fn allocate_command_buffers(logical_device: &Device, command_pool: vk::CommandPool, amount: u32) -> Vec<vk::CommandBuffer> {
+    let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::builder()
         .command_pool(command_pool)
         .level(vk::CommandBufferLevel::PRIMARY)
         .command_buffer_count(amount);
@@ -236,7 +243,7 @@ pub fn allocate_command_buffers(logical_device: &DeviceLoader, command_pool: vk:
 #[repr(C)] //Unnecessary in this case, but keeping it to ensure consistency in the future
 pub struct Vert(pub f32, pub f32);
 
-pub fn create_staging_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &Rc<DeviceLoader>, memory_size: vk::DeviceSize) -> ManagedBuffer {
+pub fn create_staging_buffer(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, memory_size: vk::DeviceSize) -> ManagedBuffer {
     //Host visible buffer; data is transferred to a device local buffer at transfer stage
     let staging_buffer = buffer::create_buffer(&logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
     let staging_buffer_memory = buffer::allocate_and_bind_buffer(
@@ -256,7 +263,7 @@ pub fn create_staging_buffer(instance: &InstanceLoader, physical_device: &vk::Ph
     }
 }
 
-pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &Rc<DeviceLoader>, size: usize) -> ManagedBuffer {
+pub fn create_vertex_buffer(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, size: usize) -> ManagedBuffer {
     //Easy to get the memory size wrong, might fail invisibly
     let memory_size = (std::mem::size_of::<Vert>() * size) as u64;
     //Device local buffer, or *true* vertex buffer, needs a staging buffer to transfer data to it
@@ -278,7 +285,7 @@ pub fn create_vertex_buffer(instance: &InstanceLoader, physical_device: &vk::Phy
     }
 }
 
-pub fn create_index_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &Rc<DeviceLoader>, size: usize) -> ManagedBuffer {
+pub fn create_index_buffer(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, size: usize) -> ManagedBuffer {
     //Easy to get the memory size wrong, might fail invisibly
     let memory_size = (std::mem::size_of::<u16>() * size) as u64;
     let index_buffer = buffer::create_buffer(&logical_device, memory_size, vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
@@ -305,28 +312,28 @@ pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: V
 }
 
 /// Immediately sends command to graphics queue to copy data from staging buffer to vertex buffer. Blocks until transfer completes.
-pub fn copy_buffer(logical_device: &DeviceLoader, command_pool: vk::CommandPool, graphics_queue: vk::Queue, src_buffer: vk::Buffer, dst_buffer: vk::Buffer, size: vk::DeviceSize) {
-    let temp_command_buffers = [allocate_command_buffers(&logical_device, command_pool, 1)[0]];
+pub fn copy_buffer(logical_device: &Device, command_pool: vk::CommandPool, graphics_queue: vk::Queue, src_buffer: vk::Buffer, dst_buffer: vk::Buffer, size: vk::DeviceSize) {
+    let temp_command_buffers = [allocate_command_buffers(logical_device, command_pool, 1)[0]];
 
-    let recording_info = vk::CommandBufferBeginInfoBuilder::new()
+    let recording_info = vk::CommandBufferBeginInfo::builder()
         .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
     unsafe {
         logical_device.begin_command_buffer(temp_command_buffers[0], &recording_info).unwrap();
         
-        let copy_region = vk::BufferCopyBuilder::new()
+        let copy_region = vk::BufferCopy::builder()
             .src_offset(0)
             .dst_offset(0)
             .size(size);
-        logical_device.cmd_copy_buffer(temp_command_buffers[0], src_buffer, dst_buffer, &[copy_region]);
+        logical_device.cmd_copy_buffer(temp_command_buffers[0], src_buffer, dst_buffer, &[*copy_region]);
 
         logical_device.end_command_buffer(temp_command_buffers[0]).unwrap();
     }
 
-    let submit_info = vk::SubmitInfoBuilder::new()
+    let submit_info = vk::SubmitInfo::builder()
         .command_buffers(&temp_command_buffers);
     
     unsafe {
-        logical_device.queue_submit(graphics_queue, &[submit_info], vk::Fence::null()).unwrap();
+        logical_device.queue_submit(graphics_queue, &[*submit_info], vk::Fence::null()).unwrap();
         logical_device.queue_wait_idle(graphics_queue).unwrap();
         logical_device.free_command_buffers(command_pool, &temp_command_buffers);
     }

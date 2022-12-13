@@ -1,19 +1,19 @@
-use erupt::{vk, InstanceLoader};
+use ash::{vk, Instance, extensions::khr::Surface};
 use std::ffi::{CStr};
 
 const GRAPHICS_Q_IDX: usize = super::GRAPHICS_Q_IDX; //Bad: The queue indices must be 0 and 1, but aren't defined here. Should be dynamic instead.
 const PRESENT_Q_IDX: usize = super::PRESENT_Q_IDX;
 
-pub fn query_swap_chain_support(instance: &InstanceLoader, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice)
+pub fn query_swap_chain_support(surface_loader: &Surface, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice)
 -> (vk::SurfaceCapabilitiesKHR, Vec<vk::SurfaceFormatKHR>, Vec<vk::PresentModeKHR>) {
-        let surface_capabilities = unsafe {instance.get_physical_device_surface_capabilities_khr(*device, *surface)}.unwrap();
-        let formats = unsafe {instance.get_physical_device_surface_formats_khr(*device, *surface, None)}.unwrap();
-        let present_modes = unsafe {instance.get_physical_device_surface_present_modes_khr(*device, *surface, None)}.unwrap();
+        let surface_capabilities = unsafe {surface_loader.get_physical_device_surface_capabilities(*device, *surface)}.unwrap();
+        let formats = unsafe {surface_loader.get_physical_device_surface_formats(*device, *surface)}.unwrap();
+        let present_modes = unsafe {surface_loader.get_physical_device_surface_present_modes(*device, *surface)}.unwrap();
         (surface_capabilities, formats.to_vec(), present_modes.to_vec())
 }
 //Find supported (command) queue families. We need certain ones for the engine to work
-pub fn find_queue_families(instance: &InstanceLoader, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice) -> Option<[u32; 2]> {
-    let queue_family_properties = unsafe {instance.get_physical_device_queue_family_properties(*device, None)};
+pub fn find_queue_families(instance: &Instance, surface_loader: &Surface, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice) -> Option<[u32; 2]> {
+    let queue_family_properties = unsafe {instance.get_physical_device_queue_family_properties(*device)};
     let mut indices = [0; 2];
     let mut found_queues = [false; 2];
     'outer:
@@ -22,7 +22,7 @@ pub fn find_queue_families(instance: &InstanceLoader, surface: &vk::SurfaceKHR, 
             indices[GRAPHICS_Q_IDX] = i as u32; //Graphics queue found, look for present queue (probably the same)
             found_queues[GRAPHICS_Q_IDX] = true;
         }
-        if !found_queues[PRESENT_Q_IDX] && unsafe {instance.get_physical_device_surface_support_khr(*device, i as u32, *surface)}.unwrap() {
+        if !found_queues[PRESENT_Q_IDX] && unsafe {surface_loader.get_physical_device_surface_support(*device, i as u32, *surface)}.unwrap() {
             indices[PRESENT_Q_IDX] = i as u32; //Present queue found, look for graphics queue
             found_queues[PRESENT_Q_IDX] = true;
         }
@@ -34,15 +34,15 @@ pub fn find_queue_families(instance: &InstanceLoader, surface: &vk::SurfaceKHR, 
     None
 }
 // How good is a given physical device? Uses heuristics to rank, picks best. Also invalidates devices that won't work
-pub fn device_suitability(instance: &InstanceLoader, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice) -> u32 {
+pub fn device_suitability(instance: &Instance, surface_loader: &Surface, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice) -> u32 {
     let device_properties = unsafe {instance.get_physical_device_properties(*device)};
     let device_features = unsafe {instance.get_physical_device_features(*device)};
 
     let mut score = 0; //Score of 0 => entirely unsuitable
     if !check_device_extension_support(instance, device) {return 0} //Must have extension to query swap chain
-    let (_, formats, present_modes) = query_swap_chain_support(instance, surface, device);
+    let (_, formats, present_modes) = query_swap_chain_support(surface_loader, surface, device);
     if device_features.geometry_shader == vk::FALSE || formats.is_empty() || present_modes.is_empty() {return 0}
-    if let None = find_queue_families(instance, surface, device) {return 0}
+    if let None = find_queue_families(instance, surface_loader, surface, device) {return 0}
 
     if device_properties.device_type == vk::PhysicalDeviceType::DISCRETE_GPU {score += 1000}
     score += device_properties.limits.max_image_dimension2_d;
@@ -51,8 +51,8 @@ pub fn device_suitability(instance: &InstanceLoader, surface: &vk::SurfaceKHR, d
     return score
 }
 // Physical device needs to support certain extensions
-fn check_device_extension_support(instance: &InstanceLoader, device: &vk::PhysicalDevice) -> bool {
-    let device_extension_properties = unsafe {instance.enumerate_device_extension_properties(*device, None, None)}.unwrap();
+fn check_device_extension_support(instance: &Instance, device: &vk::PhysicalDevice) -> bool {
+    let device_extension_properties = unsafe {instance.enumerate_device_extension_properties(*device)}.unwrap();
     let available_extension_names: Vec<&str> = device_extension_properties
         .iter()
         .map(|ext| unsafe {CStr::from_ptr(ext.extension_name.as_ptr())}.to_str().unwrap() ).collect();

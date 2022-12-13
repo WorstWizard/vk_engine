@@ -1,11 +1,11 @@
-use erupt::vk;
+use ash::vk;
 use winit::window::Window;
 
 // Surface format details how images are represented in memory
 pub fn choose_swap_surface_format(formats: &Vec<vk::SurfaceFormatKHR>) -> vk::SurfaceFormatKHR {
     for available_format in formats {
         // If preferred format available, return it
-        if available_format.format == vk::Format::R8G8B8A8_SRGB && available_format.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR_KHR {
+        if available_format.format == vk::Format::R8G8B8A8_SRGB && available_format.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR {
             return *available_format
         }
     }
@@ -20,7 +20,7 @@ pub fn choose_swap_present_mode(present_modes: &Vec<vk::PresentModeKHR>, preferr
             return *available_mode
         }
     }
-    return vk::PresentModeKHR::FIFO_KHR;
+    return vk::PresentModeKHR::FIFO;
 }
     
 pub fn choose_swap_extent(window: &Window, capabilities: &vk::SurfaceCapabilitiesKHR) -> vk::Extent2D {

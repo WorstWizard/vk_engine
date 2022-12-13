@@ -12,10 +12,7 @@ There is yet no entirely consistent rule for which functions are safe/unsafe.
 use winit::window::{Window, WindowBuilder};
 use winit::event_loop::{EventLoop};
 
-use std::os::raw::{c_void};
-use std::mem::size_of;
-
-use erupt::vk;
+use ash::vk;
 
 /// Core functionality used to build the [`BaseApp`],
 /// can be used as shortcuts for custom Vulkan applications where [`BaseApp`] cannot be extended to cover needs.
@@ -51,18 +48,20 @@ pub unsafe fn drawing_commands<F>(app: &mut BaseApp, buffer_index: usize, swapch
     where F: FnOnce(&mut BaseApp)
 {
     //Start render pass
-    let render_area = vk::Rect2DBuilder::new()
+    let render_area = vk::Rect2D::builder()
         .offset(vk::Offset2D{x: 0, y: 0})
         .extent(app.swapchain_extent);
     let mut clear_color = [vk::ClearValue::default()]; clear_color[0].color.float32 = [0.0, 0.0, 0.0, 1.0];
-    let renderpass_begin_info = vk::RenderPassBeginInfoBuilder::new()
+    let renderpass_begin_info = vk::RenderPassBeginInfo::builder()
         .render_pass(app.render_pass)
         .framebuffer(app.framebuffers[swapchain_image_index as usize])
         .render_area(*render_area)
         .clear_values(&clear_color);
     app.logical_device.cmd_begin_render_pass(app.command_buffers[buffer_index], &renderpass_begin_info, vk::SubpassContents::INLINE);
     app.logical_device.cmd_bind_pipeline(app.command_buffers[buffer_index], vk::PipelineBindPoint::GRAPHICS, app.graphics_pipeline);
-    app.logical_device.cmd_push_constants(app.command_buffers[buffer_index], app.graphics_pipeline_layout, vk::ShaderStageFlags::VERTEX, 0, (push_constants.len()*size_of::<f32>()) as u32, push_constants.as_ptr() as *const c_void);
+    app.logical_device.cmd_push_constants(
+        app.command_buffers[buffer_index], app.graphics_pipeline_layout, vk::ShaderStageFlags::VERTEX, 0,
+        push_constants.into_iter().map(|float| (*float).to_ne_bytes()).flatten().collect::<Vec<u8>>().as_slice());
     let vertex_buffers = [app.vertex_buffer.buffer];
     let offsets = [0];
     app.logical_device.cmd_bind_vertex_buffers(app.command_buffers[buffer_index], 0, &vertex_buffers, &offsets);

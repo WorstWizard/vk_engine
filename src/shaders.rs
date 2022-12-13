@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::path::Path;
-use std::io::Read;
 
 #[derive(Clone)]
 pub struct Shader {
@@ -18,9 +17,7 @@ pub enum ShaderType {
 #[allow(dead_code)]
 pub fn load_shader<P: AsRef<Path>>(shader_path: P, shader_type: ShaderType) -> Result<Shader, &'static str> {
     if let Ok(mut shader_file) = File::open(shader_path) {
-        let mut contents = Vec::new();
-        shader_file.read_to_end(&mut contents).unwrap();
-        if let Ok(decoded_spv) = erupt::utils::decode_spv(&contents) {
+        if let Ok(decoded_spv) = ash::util::read_spv(&mut shader_file) {
             return Ok(Shader{
                 data: decoded_spv,
                 shader_type: shader_type,

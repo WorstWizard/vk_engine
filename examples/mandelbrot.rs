@@ -2,7 +2,7 @@
 
 use vk_engine::{BaseApp, init_window};
 use std::time;
-use erupt::vk;
+use ash::vk;
 use winit::event::{Event, WindowEvent, VirtualKeyCode};
 use winit::event_loop::{ControlFlow};
 
@@ -57,9 +57,9 @@ fn main() {
                 vulkan_app.wait_for_in_flight_fence(current_frame);
 
                 // Acquire index of image from the swapchain, signal semaphore once finished
-                let image_index = match vulkan_app.acquire_next_image(current_frame) {
+                let (image_index, _) = match vulkan_app.acquire_next_image(current_frame) {
                     Ok(i) => i,
-                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => { //Swapchain is outdated, recreate it before continuing
+                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => { //Swapchain is outdated, recreate it before continuing
                         vulkan_app.recreate_swapchain(shaders_loaded.clone());
                         return
                     },

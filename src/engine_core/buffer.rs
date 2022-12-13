@@ -1,10 +1,10 @@
-use erupt::{vk, InstanceLoader, DeviceLoader};
+use ash::{vk, Instance, Device};
 use std::ffi::c_void;
 use std::ops::Deref;
 use std::rc::Rc;
 
 pub struct ManagedBuffer {
-    pub logical_device: Rc<DeviceLoader>,
+    pub logical_device: Rc<Device>,
     pub memory_size: vk::DeviceSize,
     pub buffer_memory: Option<vk::DeviceMemory>,
     pub buffer: vk::Buffer,
@@ -55,17 +55,17 @@ impl Drop for ManagedBuffer {
 }
 
 /// Refer to https://doc.rust-lang.org/reference/type-layout.html for info on data layout.
-pub fn create_buffer(logical_device: &DeviceLoader, size: vk::DeviceSize, usage: vk::BufferUsageFlags) -> vk::Buffer {
-    let buffer_info = vk::BufferCreateInfoBuilder::new()
+pub fn create_buffer(logical_device: &Device, size: vk::DeviceSize, usage: vk::BufferUsageFlags) -> vk::Buffer {
+    let buffer_info = vk::BufferCreateInfo::builder()
         .size(size)
         .usage(usage)
         .sharing_mode(vk::SharingMode::EXCLUSIVE);
     unsafe{ logical_device.create_buffer(&buffer_info, None) }.unwrap()
 }
 
-pub fn allocate_and_bind_buffer(instance: &InstanceLoader, physical_device: &vk::PhysicalDevice, logical_device: &DeviceLoader, buffer: vk::Buffer, memory_properties: vk::MemoryPropertyFlags) -> vk::DeviceMemory {
+pub fn allocate_and_bind_buffer(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Device, buffer: vk::Buffer, memory_properties: vk::MemoryPropertyFlags) -> vk::DeviceMemory {
     let memory_requirements = unsafe{ logical_device.get_buffer_memory_requirements(buffer) };
-    fn find_memory_type(instance: &InstanceLoader, physical_device: vk::PhysicalDevice, type_filter: u32, properties: vk::MemoryPropertyFlags) -> Result<(u32, vk::MemoryType), &str> {
+    fn find_memory_type(instance: &Instance, physical_device: vk::PhysicalDevice, type_filter: u32, properties: vk::MemoryPropertyFlags) -> Result<(u32, vk::MemoryType), &str> {
         let memory_properties = unsafe{ instance.get_physical_device_memory_properties(physical_device) };
         for (i, mem_type) in memory_properties.memory_types.into_iter().enumerate() {
             if (type_filter & (1 << i)) != 0 && (mem_type.property_flags.contains(properties)) {
@@ -75,7 +75,7 @@ pub fn allocate_and_bind_buffer(instance: &InstanceLoader, physical_device: &vk:
         return Err("No suitable memory type found!");
     }
 
-    let mem_alloc_info = vk::MemoryAllocateInfoBuilder::new()
+    let mem_alloc_info = vk::MemoryAllocateInfo::builder()
         .allocation_size(memory_requirements.size)
         .memory_type_index(
             find_memory_type(
@@ -92,6 +92,6 @@ pub fn allocate_and_bind_buffer(instance: &InstanceLoader, physical_device: &vk:
     buffer_memory
 }
 
-pub fn map_buffer_memory(logical_device: &DeviceLoader, buffer_memory: vk::DeviceMemory) -> *mut c_void {
+pub fn map_buffer_memory(logical_device: &Device, buffer_memory: vk::DeviceMemory) -> *mut c_void {
     unsafe {logical_device.map_memory(buffer_memory, 0, vk::WHOLE_SIZE, vk::MemoryMapFlags::empty())}.unwrap()
 }
