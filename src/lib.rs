@@ -39,11 +39,15 @@ pub fn init_window(app_name: &str, width: u32, height: u32) -> (Window, EventLoo
     (window, event_loop)
 }
 
-/** For use inside [`BaseApp::record_command_buffer`]. Will cover most common use cases for drawing:
+/**
+For use inside [`BaseApp::record_command_buffer`]. Will cover most common use cases for drawing:
 1. Sets the render area to the full swapchain extent and sets the (first) clear color to black
 2. Begins a render pass and binds the graphics pipeline to the graphics stage
 3. Runs `commands` closure
-4. Ends render pass */
+4. Ends render pass
+# Safety
+Behaviour is undefined if the arguments are invalid.
+*/
 pub unsafe fn drawing_commands<F>(app: &mut BaseApp, buffer_index: usize, swapchain_image_index: u32, commands: F, push_constants: &[f32; 1])
     where F: FnOnce(&mut BaseApp)
 {
@@ -61,7 +65,7 @@ pub unsafe fn drawing_commands<F>(app: &mut BaseApp, buffer_index: usize, swapch
     app.logical_device.cmd_bind_pipeline(app.command_buffers[buffer_index], vk::PipelineBindPoint::GRAPHICS, app.graphics_pipeline);
     app.logical_device.cmd_push_constants(
         app.command_buffers[buffer_index], app.graphics_pipeline_layout, vk::ShaderStageFlags::VERTEX, 0,
-        push_constants.into_iter().map(|float| (*float).to_ne_bytes()).flatten().collect::<Vec<u8>>().as_slice());
+        push_constants.iter().flat_map(|float| (*float).to_ne_bytes()).collect::<Vec<u8>>().as_slice());
     let vertex_buffers = [app.vertex_buffer.buffer];
     let offsets = [0];
     app.logical_device.cmd_bind_vertex_buffers(app.command_buffers[buffer_index], 0, &vertex_buffers, &offsets);

@@ -20,7 +20,7 @@ pub fn load_shader<P: AsRef<Path>>(shader_path: P, shader_type: ShaderType) -> R
         if let Ok(decoded_spv) = ash::util::read_spv(&mut shader_file) {
             return Ok(Shader{
                 data: decoded_spv,
-                shader_type: shader_type,
+                shader_type,
             })
         }
     }

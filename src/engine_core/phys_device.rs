@@ -1,8 +1,5 @@
 use ash::{vk, Instance, extensions::khr::Surface};
-use std::ffi::{CStr};
-
-const GRAPHICS_Q_IDX: usize = super::GRAPHICS_Q_IDX; //Bad: The queue indices must be 0 and 1, but aren't defined here. Should be dynamic instead.
-const PRESENT_Q_IDX: usize = super::PRESENT_Q_IDX;
+use std::ffi::CStr;
 
 pub fn query_swap_chain_support(surface_loader: &Surface, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice)
 -> (vk::SurfaceCapabilitiesKHR, Vec<vk::SurfaceFormatKHR>, Vec<vk::PresentModeKHR>) {
@@ -11,25 +8,36 @@ pub fn query_swap_chain_support(surface_loader: &Surface, surface: &vk::SurfaceK
         let present_modes = unsafe {surface_loader.get_physical_device_surface_present_modes(*device, *surface)}.unwrap();
         (surface_capabilities, formats.to_vec(), present_modes.to_vec())
 }
+
+
+/// Helper struct for queue family indices
+#[derive(Clone, Copy)]
+pub struct QueueFamilyIndices {
+    pub graphics_queue: u32,
+    pub present_queue: u32
+}
+impl QueueFamilyIndices {
+    /// Copies the queue indices into an array and returns it
+    /// **Do not** rely on the size or order of the array, they may change
+    pub fn array(&self) -> [u32; 2] {
+        [self.graphics_queue, self.present_queue]
+    }
+}
+
 //Find supported (command) queue families. We need certain ones for the engine to work
-pub fn find_queue_families(instance: &Instance, surface_loader: &Surface, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice) -> Option<[u32; 2]> {
+pub fn find_queue_families(instance: &Instance, surface_loader: &Surface, surface: &vk::SurfaceKHR, device: &vk::PhysicalDevice) -> Option<QueueFamilyIndices> {
     let queue_family_properties = unsafe {instance.get_physical_device_queue_family_properties(*device)};
-    let mut indices = [0; 2];
-    let mut found_queues = [false; 2];
-    'outer:
+    let mut indices = [None, None];
     for (i, queue_family) in queue_family_properties.iter().enumerate() {
-        if !found_queues[GRAPHICS_Q_IDX] && queue_family.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
-            indices[GRAPHICS_Q_IDX] = i as u32; //Graphics queue found, look for present queue (probably the same)
-            found_queues[GRAPHICS_Q_IDX] = true;
+        if indices[0].is_none() && queue_family.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
+            indices[0] = Some(i as u32); //Graphics queue found, look for present queue (probably the same)
         }
-        if !found_queues[PRESENT_Q_IDX] && unsafe {surface_loader.get_physical_device_surface_support(*device, i as u32, *surface)}.unwrap() {
-            indices[PRESENT_Q_IDX] = i as u32; //Present queue found, look for graphics queue
-            found_queues[PRESENT_Q_IDX] = true;
+        if indices[1].is_none() && unsafe {surface_loader.get_physical_device_surface_support(*device, i as u32, *surface)}.unwrap() {
+            indices[1] = Some(i as u32); //Present queue found, look for graphics queue
         }
-        for queue_found in found_queues {
-            if !queue_found {break 'outer}
+        if indices[0].is_some() && indices[1].is_some() {
+            return Some(QueueFamilyIndices { graphics_queue: indices[0].unwrap(), present_queue: indices[1].unwrap() }) //Only reached if the above for loop does not break
         }
-        return Some(indices) //Only reached if the above for loop does not break
     }
     None
 }
@@ -42,13 +50,13 @@ pub fn device_suitability(instance: &Instance, surface_loader: &Surface, surface
     if !check_device_extension_support(instance, device) {return 0} //Must have extension to query swap chain
     let (_, formats, present_modes) = query_swap_chain_support(surface_loader, surface, device);
     if device_features.geometry_shader == vk::FALSE || formats.is_empty() || present_modes.is_empty() {return 0}
-    if let None = find_queue_families(instance, surface_loader, surface, device) {return 0}
+    if find_queue_families(instance, surface_loader, surface, device).is_none() {return 0}
 
     if device_properties.device_type == vk::PhysicalDeviceType::DISCRETE_GPU {score += 1000}
     score += device_properties.limits.max_image_dimension2_d;
     //println!("Device name: {}", unsafe {CStr::from_ptr(device_properties.device_name.as_ptr())}.to_string_lossy());
 
-    return score
+    score
 }
 // Physical device needs to support certain extensions
 fn check_device_extension_support(instance: &Instance, device: &vk::PhysicalDevice) -> bool {
@@ -62,5 +70,5 @@ fn check_device_extension_support(instance: &Instance, device: &vk::PhysicalDevi
             return false
         }
     }
-    return true
+    true
 }

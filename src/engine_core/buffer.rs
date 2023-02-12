@@ -17,7 +17,7 @@ impl ManagedBuffer {
     pub fn map_buffer_memory(&mut self) -> *mut c_void {
         if let Some(memory) = self.buffer_memory {
             self.memory_mapped = true;
-            return map_buffer_memory(&self.logical_device, memory);
+            map_buffer_memory(&self.logical_device, memory)
         } else {
             panic!("Attempt to map unallocated/unbound buffer memory!");
         }
@@ -69,17 +69,17 @@ pub fn allocate_and_bind_buffer(instance: &Instance, physical_device: &vk::Physi
         let memory_properties = unsafe{ instance.get_physical_device_memory_properties(physical_device) };
         for (i, mem_type) in memory_properties.memory_types.into_iter().enumerate() {
             if (type_filter & (1 << i)) != 0 && (mem_type.property_flags.contains(properties)) {
-                return Ok((i as u32, mem_type));
+                return Ok((i as u32, mem_type))
             }
         }
-        return Err("No suitable memory type found!");
+        Err("No suitable memory type found!")
     }
 
     let mem_alloc_info = vk::MemoryAllocateInfo::builder()
         .allocation_size(memory_requirements.size)
         .memory_type_index(
             find_memory_type(
-                &instance,
+                instance,
                 *physical_device,
                 memory_requirements.memory_type_bits,
                 memory_properties

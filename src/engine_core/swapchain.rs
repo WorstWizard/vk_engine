@@ -10,7 +10,7 @@ pub fn choose_swap_surface_format(formats: &Vec<vk::SurfaceFormatKHR>) -> vk::Su
         }
     }
     // Otherwise use the first in list (usually good)
-    return formats[0];
+    formats[0]
 }
 // How are images presented to the surface from the swapchain. IMMEDIATE_KHR to turn any vertical sync off, FIFO_KHR is "normal" vsync
 // MAILBOX_KHR is preferred option for vsync with low latency; images at the back of the queue are replaced
@@ -20,18 +20,18 @@ pub fn choose_swap_present_mode(present_modes: &Vec<vk::PresentModeKHR>, preferr
             return *available_mode
         }
     }
-    return vk::PresentModeKHR::FIFO;
+    vk::PresentModeKHR::FIFO
 }
     
 pub fn choose_swap_extent(window: &Window, capabilities: &vk::SurfaceCapabilitiesKHR) -> vk::Extent2D {
     //If width/height of current extent is u32::MAX, the window manager allows selecting an extent different from the window resolution
     if capabilities.current_extent.width != u32::MAX { //Extent is specified already, must use it
-        return capabilities.current_extent
+        capabilities.current_extent
     } else {
         let window_size = window.inner_size();
         let mut actual_extent = vk::Extent2D{width: window_size.width, height: window_size.height};
         actual_extent.width = actual_extent.width.clamp(capabilities.min_image_extent.width, capabilities.max_image_extent.width);
         actual_extent.height = actual_extent.height.clamp(capabilities.min_image_extent.height, capabilities.max_image_extent.height);
-        return actual_extent;
+        actual_extent
     }
 }

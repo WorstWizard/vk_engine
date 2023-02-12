@@ -67,27 +67,28 @@ pub fn check_validation_layer_support(entry: &Entry) -> bool{
         }
         if !found {return false}
     }
-    return true
+    true
 }
 
-pub fn find_physical_device(instance: &Instance, surface_loader: &Surface, surface: &vk::SurfaceKHR) -> (vk::PhysicalDevice, [u32;2]) {
+pub fn find_physical_device(instance: &Instance, surface_loader: &Surface, surface: &vk::SurfaceKHR) -> (vk::PhysicalDevice, phys_device::QueueFamilyIndices) {
     let devices = unsafe {instance.enumerate_physical_devices()}.unwrap();
-    if devices.len() == 0 {panic!("No devices with Vulkan support!")}
+    if devices.is_empty() {panic!("No devices with Vulkan support!")}
 
     let mut suitability = 0;
     let physical_device = devices.into_iter().max_by_key(
     |device| {
-        suitability = phys_device::device_suitability(instance, surface_loader, surface, &device)
+        suitability = phys_device::device_suitability(instance, surface_loader, surface, device);
+        suitability
     }
     ).expect("No suitable GPU could be found!");
-    if suitability <= 0 {panic!("No suitable GPU could be found!")}
+    if suitability == 0 {panic!("No suitable GPU could be found!")}
 
     let queue_family_indices = phys_device::find_queue_families(instance, surface_loader, surface, &physical_device).unwrap(); //Checked in device_suitabiliy, so will always succeed
     (physical_device, queue_family_indices)
 }
 
-pub fn create_logical_device(instance: &Instance, physical_device: &vk::PhysicalDevice, queue_family_indices: [u32; 2]) -> Rc<Device> {
-    let unique_queue_family_indices: Vec<u32> = HashSet::from(queue_family_indices).into_iter().collect();
+pub fn create_logical_device(instance: &Instance, physical_device: &vk::PhysicalDevice, queue_family_indices: phys_device::QueueFamilyIndices) -> Rc<Device> {
+    let unique_queue_family_indices: Vec<u32> = HashSet::from( queue_family_indices.array() ).drain().collect();
     let device_queue_infos: &[vk::DeviceQueueCreateInfo] = &unique_queue_family_indices.into_iter().map(|index| {
         *vk::DeviceQueueCreateInfo::builder()
             .queue_family_index(index)
@@ -102,15 +103,15 @@ pub fn create_logical_device(instance: &Instance, physical_device: &vk::Physical
     if VALIDATION_ENABLED {
         device_create_info = device_create_info.enabled_layer_names(&VALIDATION_LAYERS);
     }
-    let logical_device = Rc::new(unsafe {
+
+    Rc::new(unsafe {
         instance.create_device(*physical_device, &device_create_info, None)
-    }.expect("Failed to create logical device!"));
-    logical_device
+    }.expect("Failed to create logical device!"))
 }
 
-pub fn get_queue_handles(logical_device: &Device, queue_family_indices: [u32; 2]) -> (vk::Queue, vk::Queue) {
-    let graphics_queue = unsafe {logical_device.get_device_queue(queue_family_indices[GRAPHICS_Q_IDX], 0)};
-    let present_queue = unsafe {logical_device.get_device_queue(queue_family_indices[PRESENT_Q_IDX], 0)};
+pub fn get_queue_handles(logical_device: &Device, queue_family_indices: phys_device::QueueFamilyIndices) -> (vk::Queue, vk::Queue) {
+    let graphics_queue = unsafe {logical_device.get_device_queue(queue_family_indices.graphics_queue, 0)};
+    let present_queue = unsafe {logical_device.get_device_queue(queue_family_indices.present_queue, 0)};
     (graphics_queue, present_queue)
 }
 
@@ -120,7 +121,7 @@ pub fn create_swapchain(
     surface: &vk::SurfaceKHR,
     physical_device: &vk::PhysicalDevice,
     swapchain_loader: &Swapchain,
-    queue_family_indices: [u32; 2]
+    queue_family_indices: phys_device::QueueFamilyIndices
 ) -> (vk::SwapchainKHR, vk::Format, vk::Extent2D, Vec<vk::Image>) {
 
     let (surface_capabilities, formats, present_modes) = phys_device::query_swap_chain_support(surface_loader, surface, physical_device);
@@ -147,9 +148,10 @@ pub fn create_swapchain(
         .clipped(true)
         //Might change depending on use case v v v
         .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT);
-    
-    if queue_family_indices[GRAPHICS_Q_IDX] != queue_family_indices[PRESENT_Q_IDX] {
-        swapchain_info = swapchain_info.image_sharing_mode(vk::SharingMode::CONCURRENT).queue_family_indices(&queue_family_indices);
+
+    let indices = queue_family_indices.array();
+    if queue_family_indices.graphics_queue != queue_family_indices.present_queue {
+        swapchain_info = swapchain_info.image_sharing_mode(vk::SharingMode::CONCURRENT).queue_family_indices(&indices);
     } else {
         swapchain_info = swapchain_info.image_sharing_mode(vk::SharingMode::EXCLUSIVE);
     }
@@ -163,9 +165,9 @@ pub fn create_swapchain(
 
 pub fn create_image_views(logical_device: &Device, swapchain_images: &Vec<vk::Image>, image_format: vk::Format) -> Vec<vk::ImageView> {
     let mut image_views = Vec::new();
-    for i in 0..swapchain_images.len() {
+    for swap_im in swapchain_images {
         let image_view_info = vk::ImageViewCreateInfo::builder()
-            .image(swapchain_images[i])
+            .image(*swap_im)
             .view_type(vk::ImageViewType::TYPE_2D)
             .format(image_format)
             .components(vk::ComponentMapping{
@@ -194,10 +196,10 @@ pub fn create_graphics_pipeline(logical_device: &Device, swapchain_extent: vk::E
     (pipeline.0, pipeline.1, render_pass)
 }
 
-pub fn create_framebuffers(logical_device: &Device, render_pass: vk::RenderPass, swapchain_extent: vk::Extent2D, image_views: &Vec<vk::ImageView>) -> Vec<vk::Framebuffer> {
+pub fn create_framebuffers(logical_device: &Device, render_pass: vk::RenderPass, swapchain_extent: vk::Extent2D, image_views: &[vk::ImageView]) -> Vec<vk::Framebuffer> {
     let mut swapchain_framebuffers = Vec::new();
-    for i in 0..image_views.len() {
-        let attachments = [image_views[i]];
+    for im_view in image_views {
+        let attachments = [*im_view];
 
         let framebuffer_info = vk::FramebufferCreateInfo::builder()
             .render_pass(render_pass)
@@ -244,11 +246,11 @@ pub struct Vert(pub f32, pub f32);
 
 pub fn create_staging_buffer(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, memory_size: vk::DeviceSize) -> ManagedBuffer {
     //Host visible buffer; data is transferred to a device local buffer at transfer stage
-    let staging_buffer = buffer::create_buffer(&logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
+    let staging_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
     let staging_buffer_memory = buffer::allocate_and_bind_buffer(
-        &instance,
+        instance,
         physical_device,
-        &logical_device,
+        logical_device,
         staging_buffer,
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
     );
@@ -266,11 +268,11 @@ pub fn create_vertex_buffer(instance: &Instance, physical_device: &vk::PhysicalD
     //Easy to get the memory size wrong, might fail invisibly
     let memory_size = (std::mem::size_of::<Vert>() * size) as u64;
     //Device local buffer, or *true* vertex buffer, needs a staging buffer to transfer data to it
-    let vertex_buffer = buffer::create_buffer(&logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
+    let vertex_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
     let vertex_buffer_memory = buffer::allocate_and_bind_buffer(
-        &instance,
+        instance,
         physical_device,
-        &logical_device,
+        logical_device,
         vertex_buffer,
         vk::MemoryPropertyFlags::DEVICE_LOCAL
     );
@@ -287,11 +289,11 @@ pub fn create_vertex_buffer(instance: &Instance, physical_device: &vk::PhysicalD
 pub fn create_index_buffer(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, size: usize) -> ManagedBuffer {
     //Easy to get the memory size wrong, might fail invisibly
     let memory_size = (std::mem::size_of::<u16>() * size) as u64;
-    let index_buffer = buffer::create_buffer(&logical_device, memory_size, vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
+    let index_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
     let index_buffer_memory = buffer::allocate_and_bind_buffer(
-        &instance,
+        instance,
         physical_device,
-        &logical_device,
+        logical_device,
         index_buffer,
         vk::MemoryPropertyFlags::DEVICE_LOCAL
     );
@@ -305,7 +307,8 @@ pub fn create_index_buffer(instance: &Instance, physical_device: &vk::PhysicalDe
     }
 }
 
-/// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, to ensure memory safety
+/// # Safety
+/// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, and `buffer_pointer` must be valid.
 pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: Vec<T>) {
     std::ptr::copy_nonoverlapping(data.as_ptr(), buffer_pointer as *mut T, data.len());
 }

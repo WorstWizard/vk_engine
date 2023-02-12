@@ -153,8 +153,8 @@ pub fn default_render_pass(logical_device: &Device, image_format: vk::Format) ->
         .attachments(&color_attachments)
         .subpasses(&subpasses)
         .dependencies(&dependencies);
-    let renderpass = unsafe {logical_device.create_render_pass(&renderpass_info, None)}.expect("Failed to create renderpass!");
-    renderpass
+    
+    unsafe {logical_device.create_render_pass(&renderpass_info, None)}.expect("Failed to create renderpass!")
 }
 
 fn create_shader_module(logical_device: &Device, shader: Shader) -> (vk::ShaderModule, vk::PipelineShaderStageCreateInfoBuilder) {

@@ -150,7 +150,7 @@ impl BaseApp {
     
         //// Command pool and buffers
         let command_pool_info = vk::CommandPoolCreateInfo::builder()
-            .queue_family_index(queue_family_indices[engine_core::GRAPHICS_Q_IDX])
+            .queue_family_index(queue_family_indices.graphics_queue)
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
         let command_pool = unsafe {logical_device.create_command_pool(&command_pool_info, None)}.expect("Could not create command pool!");
 
@@ -194,7 +194,7 @@ impl BaseApp {
             _messenger,
             window,
             surface_loader,
-            surface: surface,
+            surface,
             graphics_queue,
             present_queue,
             swapchain_loader,
@@ -292,7 +292,7 @@ impl BaseApp {
         let wait_sems = [self.sync.image_available[buffer_index]];
         let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let signal_sems = [self.sync.render_finished[buffer_index]];
-        let cmd_buffers = [self.command_buffers[buffer_index as usize]];
+        let cmd_buffers = [self.command_buffers[buffer_index]];
         let submits = [*vk::SubmitInfo::builder()
             .wait_semaphores(&wait_sems)
             .wait_dst_stage_mask(&wait_stages)
