@@ -18,17 +18,17 @@ pub fn default_pipeline(
 
     // This is all terribly bad, but works for now
     // TODO: Move it outside of this file, and fix the fucking offset being hardcoded, super dangerous if someone tries to extend it
-    let binding_descriptions = [vk::VertexInputBindingDescription::builder()
+    let binding_descriptions = [*vk::VertexInputBindingDescription::builder()
         .binding(0)
         .stride(size_of::<Vert>() as u32)
         .input_rate(vk::VertexInputRate::VERTEX)
-        .build()];
-    let attribute_descriptions = [vk::VertexInputAttributeDescription::builder()
+    ];
+    let attribute_descriptions = [*vk::VertexInputAttributeDescription::builder()
         .binding(0)
         .location(0)
         .format(vk::Format::R32G32_SFLOAT)
         .offset(0)
-        .build()];
+    ];
 
     // Vertex input settings
     let pipeline_vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::builder()
@@ -39,18 +39,18 @@ pub fn default_pipeline(
         .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
         .primitive_restart_enable(false);
     // Viewport settings
-    let viewports = [vk::Viewport::builder()
+    let viewports = [*vk::Viewport::builder()
         .x(0.0)
         .y(0.0)
         .width(swapchain_extent.width as f32)
         .height(swapchain_extent.height as f32)
         .min_depth(0.0)
         .max_depth(1.0)
-        .build()];
-    let scissor_rects = [vk::Rect2D::builder()
+    ];
+    let scissor_rects = [*vk::Rect2D::builder()
         .offset(vk::Offset2D{x: 0, y: 0})
         .extent(swapchain_extent)
-        .build()];
+    ];
     let pipeline_viewport_state_info = vk::PipelineViewportStateCreateInfo::builder()
         .viewports(&viewports)
         .scissors(&scissor_rects);
@@ -68,24 +68,24 @@ pub fn default_pipeline(
         .sample_shading_enable(false)
         .rasterization_samples(vk::SampleCountFlags::TYPE_1);
     // Color blending settings
-    let pipeline_color_blend_attachment_states = [vk::PipelineColorBlendAttachmentState::builder()
+    let pipeline_color_blend_attachment_states = [*vk::PipelineColorBlendAttachmentState::builder()
         .color_write_mask(
             vk::ColorComponentFlags::R |
             vk::ColorComponentFlags::G |
             vk::ColorComponentFlags::B |
             vk::ColorComponentFlags::A)
         .blend_enable(false)
-        .build()];
+    ];
     let pipeline_color_blend_state_info = vk::PipelineColorBlendStateCreateInfo::builder()
         .logic_op_enable(false)
         .attachments(&pipeline_color_blend_attachment_states);
     
     // Pipeline layout
-    let push_constant_ranges = [vk::PushConstantRange::builder()
+    let push_constant_ranges = [*vk::PushConstantRange::builder()
         .stage_flags(vk::ShaderStageFlags::VERTEX)
         .offset(0)
         .size((push_constants.len()*size_of::<f32>()) as u32)
-        .build()];
+    ];
     
     let pipeline_layout_info = vk::PipelineLayoutCreateInfo::builder()
         .push_constant_ranges(&push_constant_ranges);
@@ -95,7 +95,7 @@ pub fn default_pipeline(
 
     let shader_stages: Vec<vk::PipelineShaderStageCreateInfo> = shader_modules.iter().map(|pair| {*pair.1}).collect();
     
-    let graphics_pipeline_infos = [vk::GraphicsPipelineCreateInfo::builder()
+    let graphics_pipeline_infos = [*vk::GraphicsPipelineCreateInfo::builder()
         .stages(&shader_stages)
         .vertex_input_state(&pipeline_vertex_input_state_info)
         .input_assembly_state(&pipeline_input_assembly_state_info)
@@ -106,7 +106,7 @@ pub fn default_pipeline(
         .layout(pipeline_layout)
         .render_pass(render_pass)
         .subpass(0)
-        .build()];
+    ];
     let graphics_pipeline = unsafe {logical_device.create_graphics_pipelines(vk::PipelineCache::null(), &graphics_pipeline_infos, None)}.unwrap()[0];
 
     //Once the graphics pipeline has been created, the SPIR-V bytecode is compiled into the pipeline itself
@@ -121,7 +121,7 @@ pub fn default_pipeline(
 }
 
 pub fn default_render_pass(logical_device: &Device, image_format: vk::Format) -> vk::RenderPass {
-    let color_attachments = [vk::AttachmentDescription::builder()
+    let color_attachments = [*vk::AttachmentDescription::builder()
         .format(image_format)
         .samples(vk::SampleCountFlags::TYPE_1)
         .load_op(vk::AttachmentLoadOp::CLEAR)
@@ -130,24 +130,24 @@ pub fn default_render_pass(logical_device: &Device, image_format: vk::Format) ->
         .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
         .initial_layout(vk::ImageLayout::UNDEFINED)
         .final_layout(vk::ImageLayout::PRESENT_SRC_KHR)
-        .build()];
+    ];
     // Subpass
-    let dependencies = [vk::SubpassDependency::builder()
+    let dependencies = [*vk::SubpassDependency::builder()
         .src_subpass(vk::SUBPASS_EXTERNAL)
         .dst_subpass(0)
         .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
         .src_access_mask(vk::AccessFlags::empty())
         .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
         .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
-        .build()];
-    let color_attachment_refs = [vk::AttachmentReference::builder()
+    ];
+    let color_attachment_refs = [*vk::AttachmentReference::builder()
         .attachment(0) //First attachment in array -> color_attachment
         .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-        .build()];
-    let subpasses = [vk::SubpassDescription::builder()
+    ];
+    let subpasses = [*vk::SubpassDescription::builder()
         .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
         .color_attachments(&color_attachment_refs)
-        .build()];
+    ];
     
     let renderpass_info = vk::RenderPassCreateInfo::builder()
         .attachments(&color_attachments)

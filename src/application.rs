@@ -293,12 +293,12 @@ impl BaseApp {
         let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let signal_sems = [self.sync.render_finished[buffer_index]];
         let cmd_buffers = [self.command_buffers[buffer_index as usize]];
-        let submits = [vk::SubmitInfo::builder()
+        let submits = [*vk::SubmitInfo::builder()
             .wait_semaphores(&wait_sems)
             .wait_dst_stage_mask(&wait_stages)
             .command_buffers(&cmd_buffers)
             .signal_semaphores(&signal_sems)
-            .build()];
+        ];
         unsafe {
             self.logical_device.queue_submit(self.graphics_queue, &submits, self.sync.in_flight[buffer_index]).expect("Queue submission failed!");
         }

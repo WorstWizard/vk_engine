@@ -89,10 +89,9 @@ pub fn find_physical_device(instance: &Instance, surface_loader: &Surface, surfa
 pub fn create_logical_device(instance: &Instance, physical_device: &vk::PhysicalDevice, queue_family_indices: [u32; 2]) -> Rc<Device> {
     let unique_queue_family_indices: Vec<u32> = HashSet::from(queue_family_indices).into_iter().collect();
     let device_queue_infos: &[vk::DeviceQueueCreateInfo] = &unique_queue_family_indices.into_iter().map(|index| {
-        vk::DeviceQueueCreateInfo::builder()
-        .queue_family_index(index)
-        .queue_priorities(&[1.0])
-        .build()
+        *vk::DeviceQueueCreateInfo::builder()
+            .queue_family_index(index)
+            .queue_priorities(&[1.0])
     }).collect::<Vec<vk::DeviceQueueCreateInfo>>().into_boxed_slice();
     
     let device_features = vk::PhysicalDeviceFeatures::default();
