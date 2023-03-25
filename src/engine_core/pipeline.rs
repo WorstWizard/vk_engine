@@ -1,7 +1,7 @@
 use std::ffi::CStr;
 use std::mem::size_of;
 use std::os::raw::c_char;
-use ash::{vk, Device};
+use ash::{vk::{self, DescriptorSetLayoutBinding}, Device};
 use cstr::cstr;
 use crate::shaders::{Shader, ShaderType};
 use super::Vert; //Would like to avoid using super, but it's the cleanest option with the current structure
@@ -14,7 +14,7 @@ pub fn default_pipeline(
     swapchain_extent: vk::Extent2D,
     shaders: (Shader, Shader),
     push_constants: [f32; 1],
-) -> (vk::Pipeline, vk::PipelineLayout) {
+) -> (vk::Pipeline, vk::PipelineLayout, vk::DescriptorSetLayout) {
 
     // This is all terribly bad, but works for now
     // TODO: Move it outside of this file, and fix the fucking offset being hardcoded, super dangerous if someone tries to extend it
@@ -79,7 +79,17 @@ pub fn default_pipeline(
     let pipeline_color_blend_state_info = vk::PipelineColorBlendStateCreateInfo::builder()
         .logic_op_enable(false)
         .attachments(&pipeline_color_blend_attachment_states);
-    
+
+    // Descriptor set layout
+    let descriptor_set_binding = [*DescriptorSetLayoutBinding::builder()
+        .binding(0)
+        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::VERTEX)];
+    let descriptor_set_layout_info = vk::DescriptorSetLayoutCreateInfo::builder()
+        .bindings(&descriptor_set_binding);
+    let descriptor_set_layout = [unsafe {logical_device.create_descriptor_set_layout(&descriptor_set_layout_info, None)}.unwrap()];
+
     // Pipeline layout
     let push_constant_ranges = [*vk::PushConstantRange::builder()
         .stage_flags(vk::ShaderStageFlags::VERTEX)
@@ -88,6 +98,7 @@ pub fn default_pipeline(
     ];
     
     let pipeline_layout_info = vk::PipelineLayoutCreateInfo::builder()
+        .set_layouts(&descriptor_set_layout)
         .push_constant_ranges(&push_constant_ranges);
     let pipeline_layout = unsafe {logical_device.create_pipeline_layout(&pipeline_layout_info, None)}.unwrap();
 
@@ -117,7 +128,7 @@ pub fn default_pipeline(
         }
     }
 
-    (graphics_pipeline, pipeline_layout)
+    (graphics_pipeline, pipeline_layout, descriptor_set_layout[0])
 }
 
 pub fn default_render_pass(logical_device: &Device, image_format: vk::Format) -> vk::RenderPass {

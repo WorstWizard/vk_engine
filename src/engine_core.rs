@@ -189,11 +189,11 @@ pub fn create_image_views(logical_device: &Device, swapchain_images: &Vec<vk::Im
     image_views
 }
 
-pub fn create_graphics_pipeline(logical_device: &Device, swapchain_extent: vk::Extent2D, image_format: vk::Format, shaders: (shaders::Shader, shaders::Shader), push_constants: [f32; 1]) -> (vk::Pipeline, vk::PipelineLayout, vk::RenderPass) {
+pub fn create_graphics_pipeline(logical_device: &Device, swapchain_extent: vk::Extent2D, image_format: vk::Format, shaders: (shaders::Shader, shaders::Shader), push_constants: [f32; 1]) -> (vk::Pipeline, vk::PipelineLayout, vk::DescriptorSetLayout, vk::RenderPass) {
     let render_pass = pipeline::default_render_pass(logical_device, image_format);
 
     let pipeline = pipeline::default_pipeline(logical_device, render_pass, swapchain_extent, shaders, push_constants);
-    (pipeline.0, pipeline.1, render_pass)
+    (pipeline.0, pipeline.1, pipeline.2, render_pass)
 }
 
 pub fn create_framebuffers(logical_device: &Device, render_pass: vk::RenderPass, swapchain_extent: vk::Extent2D, image_views: &[vk::ImageView]) -> Vec<vk::Framebuffer> {
@@ -305,6 +305,34 @@ pub fn create_index_buffer(instance: &Instance, physical_device: &vk::PhysicalDe
         buffer_memory: Some(index_buffer_memory),
         memory_mapped: false,
     }
+}
+
+pub fn create_uniform_buffers(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, memory_size: u64, count: usize) -> Vec<(ManagedBuffer, *mut c_void)> {
+    //Easy to get the memory size wrong, might fail invisibly
+    let mut uniform_buffers = Vec::with_capacity(count);
+    for _ in 0..count {
+        let uniform_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::UNIFORM_BUFFER);
+        let uniform_buffer_memory = buffer::allocate_and_bind_buffer(
+            instance,
+            physical_device,
+            logical_device,
+            uniform_buffer,
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT
+        );
+
+        let mut managed_buffer = ManagedBuffer {
+            logical_device: Rc::clone(logical_device),
+            memory_size,
+            buffer: uniform_buffer,
+            buffer_memory: Some(uniform_buffer_memory),
+            memory_mapped: false,
+        };
+
+        let mem_ptr = managed_buffer.map_buffer_memory();
+
+        uniform_buffers.push((managed_buffer, mem_ptr));
+    }
+    uniform_buffers
 }
 
 /// # Safety

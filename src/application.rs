@@ -23,9 +23,11 @@ pub struct BaseApp {
     pub command_buffers: Vec<vk::CommandBuffer>,
     pub index_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
     pub vertex_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
+    pub uniform_buffers: ManuallyDrop<Vec<(engine_core::ManagedBuffer, *mut std::ffi::c_void)>>,
     command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
+    pub descriptor_set_layout: vk::DescriptorSetLayout,
     pub graphics_pipeline_layout: vk::PipelineLayout,
     pub graphics_pipeline: vk::Pipeline,
     image_views: Vec<vk::ImageView>,
@@ -57,6 +59,7 @@ impl Drop for BaseApp {
             //Explicitly dropping buffers to ensure that the logical device still exists when they do
             ManuallyDrop::drop(&mut self.vertex_buffer);
             ManuallyDrop::drop(&mut self.index_buffer);
+            ManuallyDrop::drop(&mut self.uniform_buffers);
 
             self.logical_device.destroy_command_pool(self.command_pool, None);
 
@@ -143,7 +146,7 @@ impl BaseApp {
         let push_constants = [1.0];
     
         //// Graphics pipeline
-        let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&logical_device, swapchain_extent, image_format, shaders, push_constants);
+        let (graphics_pipeline, graphics_pipeline_layout, descriptor_set_layout, render_pass) = engine_core::create_graphics_pipeline(&logical_device, swapchain_extent, image_format, shaders, push_constants);
     
         //// Framebuffers
         let framebuffers = engine_core::create_framebuffers(&logical_device, render_pass, swapchain_extent, &image_views);
@@ -181,6 +184,13 @@ impl BaseApp {
             engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, *staging_buffer, *index_buffer, (std::mem::size_of::<u16>() * 6) as u64);
         }
 
+
+        struct UniformBufferObject {
+            time: f32,
+        }
+        let uniform_buffers = engine_core::create_uniform_buffers(&instance, &physical_device, &logical_device, std::mem::size_of::<UniformBufferObject>() as u64, MAX_FRAMES_IN_FLIGHT);
+
+
         let command_buffers = engine_core::allocate_command_buffers(&logical_device, command_pool, image_views.len() as u32);
     
         //// Create semaphores for in-render-pass synchronization
@@ -203,11 +213,13 @@ impl BaseApp {
             image_views,
             graphics_pipeline,
             graphics_pipeline_layout,
+            descriptor_set_layout,
             render_pass,
             framebuffers,
             command_pool,
             vertex_buffer: ManuallyDrop::new(vertex_buffer),
             index_buffer: ManuallyDrop::new(index_buffer),
+            uniform_buffers: ManuallyDrop::new(uniform_buffers),
             command_buffers,
             sync,
         }
@@ -347,7 +359,7 @@ impl BaseApp {
         let (swapchain, image_format, swapchain_extent, swapchain_images) =
         engine_core::create_swapchain(&self.window, &self.surface_loader, &self.surface, &physical_device, &self.swapchain_loader, queue_family_indices);
         let image_views = engine_core::create_image_views(&self.logical_device, &swapchain_images, image_format);
-        let (graphics_pipeline, graphics_pipeline_layout, render_pass) = engine_core::create_graphics_pipeline(&self.logical_device, swapchain_extent, image_format, shaders, [0.0]);
+        let (graphics_pipeline, graphics_pipeline_layout, descriptor_set_layout, render_pass) = engine_core::create_graphics_pipeline(&self.logical_device, swapchain_extent, image_format, shaders, [0.0]);
         let framebuffers = engine_core::create_framebuffers(&self.logical_device, render_pass, swapchain_extent, &image_views);
 
         self.swapchain = swapchain;
@@ -356,6 +368,7 @@ impl BaseApp {
         self.render_pass = render_pass;
         self.graphics_pipeline = graphics_pipeline;
         self.graphics_pipeline_layout = graphics_pipeline_layout;
+        self.descriptor_set_layout = descriptor_set_layout;
         self.framebuffers = framebuffers;
     }
 
@@ -365,6 +378,7 @@ impl BaseApp {
         }
         self.logical_device.destroy_pipeline(self.graphics_pipeline, None);
         self.logical_device.destroy_pipeline_layout(self.graphics_pipeline_layout, None);
+        self.logical_device.destroy_descriptor_set_layout(self.descriptor_set_layout, None);
         self.logical_device.destroy_render_pass(self.render_pass, None);
         for view in self.image_views.drain(..) {
             self.logical_device.destroy_image_view(view, None);
