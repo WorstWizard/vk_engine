@@ -260,7 +260,7 @@ pub fn create_staging_buffer(instance: &Instance, physical_device: &vk::Physical
         memory_size,
         buffer: staging_buffer,
         buffer_memory: Some(staging_buffer_memory),
-        memory_mapped: false,
+        memory_ptr: None,
     }
 }
 
@@ -282,7 +282,7 @@ pub fn create_vertex_buffer(instance: &Instance, physical_device: &vk::PhysicalD
         memory_size,
         buffer: vertex_buffer,
         buffer_memory: Some(vertex_buffer_memory),
-        memory_mapped: false,
+        memory_ptr: None,
     }
 }
 
@@ -303,11 +303,11 @@ pub fn create_index_buffer(instance: &Instance, physical_device: &vk::PhysicalDe
         memory_size,
         buffer: index_buffer,
         buffer_memory: Some(index_buffer_memory),
-        memory_mapped: false,
+        memory_ptr: None,
     }
 }
 
-pub fn create_uniform_buffers(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, memory_size: u64, count: usize) -> Vec<(ManagedBuffer, *mut c_void)> {
+pub fn create_uniform_buffers(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, memory_size: u64, count: usize) -> Vec<ManagedBuffer> {
     //Easy to get the memory size wrong, might fail invisibly
     let mut uniform_buffers = Vec::with_capacity(count);
     for _ in 0..count {
@@ -325,12 +325,11 @@ pub fn create_uniform_buffers(instance: &Instance, physical_device: &vk::Physica
             memory_size,
             buffer: uniform_buffer,
             buffer_memory: Some(uniform_buffer_memory),
-            memory_mapped: false,
+            memory_ptr: None,
         };
+        managed_buffer.map_buffer_memory(); // Map immediately, as the uniform buffers are persistently mapped
 
-        let mem_ptr = managed_buffer.map_buffer_memory();
-
-        uniform_buffers.push((managed_buffer, mem_ptr));
+        uniform_buffers.push(managed_buffer);
     }
     uniform_buffers
 }

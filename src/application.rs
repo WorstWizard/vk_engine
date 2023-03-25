@@ -23,7 +23,7 @@ pub struct BaseApp {
     pub command_buffers: Vec<vk::CommandBuffer>,
     pub index_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
     pub vertex_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
-    pub uniform_buffers: ManuallyDrop<Vec<(engine_core::ManagedBuffer, *mut std::ffi::c_void)>>,
+    pub uniform_buffers: ManuallyDrop<Vec<engine_core::ManagedBuffer>>,
     command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
@@ -169,18 +169,18 @@ impl BaseApp {
         let vertex_buffer = engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, verts.len());
         {
             let mut staging_buffer = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
-            let staging_pointer = staging_buffer.map_buffer_memory();
+            staging_buffer.map_buffer_memory();
 
-            unsafe { engine_core::write_vec_to_buffer(staging_pointer, verts) };
+            unsafe { engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), verts) };
             engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, *staging_buffer, *vertex_buffer, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
         }
 
         let index_buffer = engine_core::create_index_buffer(&instance, &physical_device, &logical_device, 6); //6 indices necessary to specify rect
         {   
             let mut staging_buffer = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<u16>() * 6) as u64);
-            let staging_pointer = staging_buffer.map_buffer_memory();
+            staging_buffer.map_buffer_memory();
 
-            unsafe { engine_core::write_vec_to_buffer(staging_pointer, indices) };
+            unsafe { engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), indices) };
             engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, *staging_buffer, *index_buffer, (std::mem::size_of::<u16>() * 6) as u64);
         }
 
