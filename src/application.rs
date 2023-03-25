@@ -167,7 +167,7 @@ impl BaseApp {
 
         let indices: Vec<u16> = vec![0,1,2,1,3,2];
 
-        let vertex_buffer = engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, verts.len());
+        let vertex_buffer = engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<Vec2>() * 4) as u64);
         {
             let mut staging_buffer = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<Vec2>() * 4) as u64);
             staging_buffer.map_buffer_memory();
