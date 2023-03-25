@@ -6,6 +6,7 @@ use ash::{vk,
 use raw_window_handle::{HasRawWindowHandle, HasRawDisplayHandle};
 use ash_window;
 use winit::window::Window;
+use glam::*;
 use std::ffi::CString;
 use std::rc::Rc;
 use std::mem::ManuallyDrop;
@@ -158,21 +159,21 @@ impl BaseApp {
         let command_pool = unsafe {logical_device.create_command_pool(&command_pool_info, None)}.expect("Could not create command pool!");
 
         let verts = vec![
-            engine_core::Vert(-1.0, -1.0),
-            engine_core::Vert( 1.0, -1.0),
-            engine_core::Vert(-1.0,  1.0),
-            engine_core::Vert( 1.0,  1.0),
+            vec2(-1.0, -1.0),
+            vec2( 1.0, -1.0),
+            vec2(-1.0,  1.0),
+            vec2( 1.0,  1.0),
         ];
 
         let indices: Vec<u16> = vec![0,1,2,1,3,2];
 
         let vertex_buffer = engine_core::create_vertex_buffer(&instance, &physical_device, &logical_device, verts.len());
         {
-            let mut staging_buffer = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
+            let mut staging_buffer = engine_core::create_staging_buffer(&instance, &physical_device, &logical_device, (std::mem::size_of::<Vec2>() * 4) as u64);
             staging_buffer.map_buffer_memory();
 
             unsafe { engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), verts) };
-            engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, *staging_buffer, *vertex_buffer, (std::mem::size_of::<engine_core::Vert>() * 4) as u64);
+            engine_core::copy_buffer(&logical_device, command_pool, graphics_queue, *staging_buffer, *vertex_buffer, (std::mem::size_of::<Vec2>() * 4) as u64);
         }
 
         let index_buffer = engine_core::create_index_buffer(&instance, &physical_device, &logical_device, 6); //6 indices necessary to specify rect

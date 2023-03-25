@@ -397,6 +397,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "glam"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e4afd9ad95555081e109fe1d21f2a30c691b5f0919c67dfa690a2e1eb6bd51c"
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -995,6 +1001,7 @@ dependencies = [
  "ash",
  "ash-window",
  "cstr",
+ "glam",
  "raw-window-handle 0.5.0",
  "shaderc",
  "winit",

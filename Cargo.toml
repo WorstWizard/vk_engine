@@ -12,6 +12,7 @@ ash = "0.37"
 ash-window = "0.12"
 cstr = "0.2"
 shaderc = {version = "0.7", optional = true}
+glam = { version = "0.23.0" }
 
 [features]
 shader_compilation = ["dep:shaderc"]

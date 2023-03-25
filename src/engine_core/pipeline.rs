@@ -2,9 +2,9 @@ use std::ffi::CStr;
 use std::mem::size_of;
 use std::os::raw::c_char;
 use ash::{vk::{self, DescriptorSetLayoutBinding}, Device};
+use glam::*;
 use cstr::cstr;
 use crate::shaders::{Shader, ShaderType};
-use super::Vert; //Would like to avoid using super, but it's the cleanest option with the current structure
 
 const DEFAULT_ENTRY: *const c_char = cstr!("main").as_ptr();
 
@@ -20,7 +20,7 @@ pub fn default_pipeline(
     // TODO: Move it outside of this file, and fix the fucking offset being hardcoded, super dangerous if someone tries to extend it
     let binding_descriptions = [*vk::VertexInputBindingDescription::builder()
         .binding(0)
-        .stride(size_of::<Vert>() as u32)
+        .stride(size_of::<Vec2>() as u32)
         .input_rate(vk::VertexInputRate::VERTEX)
     ];
     let attribute_descriptions = [*vk::VertexInputAttributeDescription::builder()

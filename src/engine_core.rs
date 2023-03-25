@@ -1,6 +1,7 @@
 use winit::window::Window;
 use ash::{vk, Entry, Instance, Device};
 use ash::extensions::khr::{Swapchain, Surface};
+use glam::*;
 use std::ffi::CStr;
 use std::os::raw::{c_void, c_char};
 use std::collections::HashSet;
@@ -241,9 +242,6 @@ pub fn allocate_command_buffers(logical_device: &Device, command_pool: vk::Comma
     unsafe {logical_device.allocate_command_buffers(&command_buffer_allocate_info)}.expect("Could not create command buffers!")
 }
 
-#[repr(C)] //Unnecessary in this case, but keeping it to ensure consistency in the future
-pub struct Vert(pub f32, pub f32);
-
 pub fn create_staging_buffer(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, memory_size: vk::DeviceSize) -> ManagedBuffer {
     //Host visible buffer; data is transferred to a device local buffer at transfer stage
     let staging_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::TRANSFER_SRC);
@@ -266,7 +264,7 @@ pub fn create_staging_buffer(instance: &Instance, physical_device: &vk::Physical
 
 pub fn create_vertex_buffer(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, size: usize) -> ManagedBuffer {
     //Easy to get the memory size wrong, might fail invisibly
-    let memory_size = (std::mem::size_of::<Vert>() * size) as u64;
+    let memory_size = (std::mem::size_of::<Vec2>() * size) as u64;
     //Device local buffer, or *true* vertex buffer, needs a staging buffer to transfer data to it
     let vertex_buffer = buffer::create_buffer(logical_device, memory_size, vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST);
     let vertex_buffer_memory = buffer::allocate_and_bind_buffer(
