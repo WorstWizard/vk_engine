@@ -1,13 +1,11 @@
 use crate::shaders::{Shader, ShaderType};
-use ash::{
-    vk::{self, DescriptorSetLayoutBinding},
-    Device,
-};
+use ash::{vk, Device};
 use cstr::cstr;
 use glam::*;
 use std::ffi::CStr;
 use std::mem::size_of;
 use std::os::raw::c_char;
+use std::rc::Rc;
 
 const DEFAULT_ENTRY: *const c_char = cstr!("main").as_ptr();
 
@@ -15,25 +13,27 @@ pub fn default_pipeline(
     logical_device: &Device,
     render_pass: vk::RenderPass,
     swapchain_extent: vk::Extent2D,
-    shaders: (Shader, Shader),
+    shaders: Vec<Shader>,
+    vertex_input_descriptors: &VertexInputDescriptors,
     push_constants: [f32; 1],
 ) -> (vk::Pipeline, vk::PipelineLayout, vk::DescriptorSetLayout) {
-    // This is all terribly bad, but works for now
-    // TODO: Move it outside of this file, and fix the fucking offset being hardcoded, super dangerous if someone tries to extend it
-    let binding_descriptions = [*vk::VertexInputBindingDescription::builder()
-        .binding(0)
-        .stride(size_of::<Vec2>() as u32)
-        .input_rate(vk::VertexInputRate::VERTEX)];
-    let attribute_descriptions = [*vk::VertexInputAttributeDescription::builder()
-        .binding(0)
-        .location(0)
-        .format(vk::Format::R32G32_SFLOAT)
-        .offset(0)];
-
+    
+    // let binding_descriptions = [*vk::VertexInputBindingDescription::builder()
+    //     .binding(0)
+    //     .stride(size_of::<Vec2>() as u32)
+    //     .input_rate(vk::VertexInputRate::VERTEX)];
+    // let attribute_descriptions = [*vk::VertexInputAttributeDescription::builder()
+    //     .binding(0)
+    //     .location(0)
+    //     .format(vk::Format::R32G32_SFLOAT)
+    //     .offset(0)];
+    
     // Vertex input settings
+    let binding_descriptions = Rc::clone(&vertex_input_descriptors.bindings);
+    let attribute_descriptions = Rc::clone(&vertex_input_descriptors.attributes);
     let pipeline_vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::builder()
-        .vertex_binding_descriptions(&binding_descriptions)
-        .vertex_attribute_descriptions(&attribute_descriptions);
+        .vertex_binding_descriptions(binding_descriptions.as_slice())
+        .vertex_attribute_descriptions(attribute_descriptions.as_slice());
     // Input assembly settings
     let pipeline_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo::builder()
         .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
@@ -80,7 +80,7 @@ pub fn default_pipeline(
         .attachments(&pipeline_color_blend_attachment_states);
 
     // Descriptor set layout
-    let descriptor_set_binding = [*DescriptorSetLayoutBinding::builder()
+    let descriptor_set_binding = [*vk::DescriptorSetLayoutBinding::builder()
         .binding(0)
         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
         .descriptor_count(1)
@@ -107,10 +107,11 @@ pub fn default_pipeline(
     let pipeline_layout =
         unsafe { logical_device.create_pipeline_layout(&pipeline_layout_info, None) }.unwrap();
 
-    let shader_modules = [
-        create_shader_module(logical_device, shaders.0),
-        create_shader_module(logical_device, shaders.1),
-    ];
+    let shader_module_vec = shaders
+        .into_iter()
+        .map(|shader| create_shader_module(logical_device, shader))
+        .collect::<Vec<(vk::ShaderModule, vk::PipelineShaderStageCreateInfoBuilder)>>();
+    let shader_modules = shader_module_vec.as_slice();
 
     let shader_stages: Vec<vk::PipelineShaderStageCreateInfo> =
         shader_modules.iter().map(|pair| *pair.1).collect();
@@ -200,4 +201,10 @@ fn create_shader_module(
         .name(entry_point);
 
     (shader_module, stage_info)
+}
+
+#[derive(Clone)]
+pub struct VertexInputDescriptors {
+    pub bindings: Rc<Vec<vk::VertexInputBindingDescription>>,
+    pub attributes: Rc<Vec<vk::VertexInputAttributeDescription>>
 }

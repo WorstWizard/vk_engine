@@ -15,6 +15,8 @@ mod pipeline;
 mod swapchain;
 
 pub use buffer::ManagedBuffer;
+pub use pipeline::VertexInputDescriptors;
+
 //["VK_LAYER_KHRONOS_validation\0" as *const str as *const [c_char] as *const c_char];
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation").as_ptr()];
 #[cfg(debug_assertions)]
@@ -241,7 +243,8 @@ pub fn create_graphics_pipeline(
     logical_device: &Device,
     swapchain_extent: vk::Extent2D,
     image_format: vk::Format,
-    shaders: (shaders::Shader, shaders::Shader),
+    shaders: Vec<shaders::Shader>,
+    vertex_input_descriptors: &VertexInputDescriptors,
     push_constants: [f32; 1],
 ) -> (
     vk::Pipeline,
@@ -256,6 +259,7 @@ pub fn create_graphics_pipeline(
         render_pass,
         swapchain_extent,
         shaders,
+        vertex_input_descriptors,
         push_constants,
     );
     (pipeline.0, pipeline.1, pipeline.2, render_pass)

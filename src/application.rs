@@ -1,4 +1,4 @@
-use crate::engine_core;
+use crate::engine_core::{self, VertexInputDescriptors};
 use crate::engine_core::{MAX_FRAMES_IN_FLIGHT, VALIDATION_ENABLED, VALIDATION_LAYERS};
 use ash::{
     extensions::{
@@ -90,7 +90,8 @@ impl BaseApp {
     pub fn new(
         window: winit::window::Window,
         app_name: &str,
-        shaders: (crate::shaders::Shader, crate::shaders::Shader),
+        shaders: Vec<crate::shaders::Shader>,
+        vertex_input_descriptors: &VertexInputDescriptors,
     ) -> BaseApp {
         let entry = Box::new(unsafe { Entry::load() }.unwrap());
 
@@ -194,6 +195,7 @@ impl BaseApp {
                 swapchain_extent,
                 image_format,
                 shaders,
+                vertex_input_descriptors,
                 push_constants,
             );
 
@@ -476,7 +478,8 @@ impl BaseApp {
     This error is non-fatal and largely unpreventable without a lot of runtime checks in that function, so for now it is ignored */
     pub fn recreate_swapchain(
         &mut self,
-        shaders: (crate::shaders::Shader, crate::shaders::Shader),
+        shaders: Vec<crate::shaders::Shader>,
+        vertex_input_descriptors: &VertexInputDescriptors
     ) {
         unsafe {
             self.logical_device.device_wait_idle().unwrap();
@@ -502,6 +505,7 @@ impl BaseApp {
                 swapchain_extent,
                 image_format,
                 shaders,
+                vertex_input_descriptors,
                 [0.0],
             );
         let framebuffers = engine_core::create_framebuffers(

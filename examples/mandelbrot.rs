@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Required to prevent console window from appearing on Windows
 
 use ash::vk;
+use std::mem::size_of;
+use std::rc::Rc;
 use std::time;
 use vk_engine::{init_window, BaseApp};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -10,7 +12,7 @@ const APP_TITLE: &str = "KK Engine Test App";
 
 fn main() {
     let (window, event_loop) = init_window(APP_TITLE, 1000, 1000);
-    let shaders_loaded = (
+    let shaders_loaded = vec![
         vk_engine::shaders::load_shader(
             "examples/shaders_compiled/mandelbrot.vert.spv",
             vk_engine::shaders::ShaderType::Vertex,
@@ -21,8 +23,25 @@ fn main() {
             vk_engine::shaders::ShaderType::Fragment,
         )
         .unwrap(),
-    );
-    let mut vulkan_app = BaseApp::new(window, APP_TITLE, shaders_loaded.clone());
+    ];
+    let vertex_input_descriptors = {
+
+        let binding = vec![*vk::VertexInputBindingDescription::builder()
+            .binding(0)
+            .input_rate(vk::VertexInputRate::VERTEX)
+            .stride(size_of::<glam::Vec2>() as u32)];
+        let attribute = vec![*vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(0)
+            .format(vk::Format::R32G32_SFLOAT)
+            .offset(0)];
+        
+        vk_engine::VertexInputDescriptors{
+            bindings: Rc::new(binding),
+            attributes: Rc::new(attribute),
+        }
+    };
+    let mut vulkan_app = BaseApp::new(window, APP_TITLE, shaders_loaded.clone(), &vertex_input_descriptors);
 
     //Tracks which frame the CPU is currently writing commands for
     //*Not* a framecounter, this value is mod MAX_FRAMES_IN_FLIGHT
@@ -68,7 +87,7 @@ fn main() {
                     Ok(i) => i,
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         //Swapchain is outdated, recreate it before continuing
-                        vulkan_app.recreate_swapchain(shaders_loaded.clone());
+                        vulkan_app.recreate_swapchain(shaders_loaded.clone(), &vertex_input_descriptors);
                         return;
                     }
                     _ => panic!("Could not acquire image from swapchain!"),
@@ -116,7 +135,7 @@ fn main() {
                     Ok(_) => (),
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         //Swapchain might be outdated again
-                        vulkan_app.recreate_swapchain(shaders_loaded.clone());
+                        vulkan_app.recreate_swapchain(shaders_loaded.clone(), &vertex_input_descriptors);
                         return;
                     }
                     _ => panic!("Could not present image!"),

@@ -26,6 +26,7 @@ pub mod shaders;
 
 #[doc(inline)]
 pub use application::BaseApp;
+pub use engine_core::VertexInputDescriptors;
 
 /// Quick initialization of a window
 pub fn init_window(app_name: &str, width: u32, height: u32) -> (Window, EventLoop<()>) {
