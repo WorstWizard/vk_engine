@@ -17,6 +17,10 @@ mod swapchain;
 pub use buffer::ManagedBuffer;
 pub use pipeline::VertexInputDescriptors;
 
+pub trait ValidIndexBufferType {}
+impl ValidIndexBufferType for u16 {}
+impl ValidIndexBufferType for u32 {}
+
 //["VK_LAYER_KHRONOS_validation\0" as *const str as *const [c_char] as *const c_char];
 pub const VALIDATION_LAYERS: [*const c_char; 1] = [cstr!("VK_LAYER_KHRONOS_validation").as_ptr()];
 #[cfg(debug_assertions)]

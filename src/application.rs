@@ -1,4 +1,4 @@
-use crate::engine_core::{self, VertexInputDescriptors};
+use crate::engine_core::{self, VertexInputDescriptors, ValidIndexBufferType};
 use crate::engine_core::{MAX_FRAMES_IN_FLIGHT, VALIDATION_ENABLED, VALIDATION_LAYERS};
 use ash::{
     extensions::{
@@ -87,10 +87,12 @@ impl Drop for BaseApp {
 }
 
 impl BaseApp {
-    pub fn new(
+    pub fn new<VertexType: Sized, IndexType: ValidIndexBufferType>(
         window: winit::window::Window,
         app_name: &str,
         shaders: &Vec<crate::shaders::Shader>,
+        vertices: Vec<VertexType>,
+        indices: Vec<IndexType>,
         vertex_input_descriptors: &VertexInputDescriptors,
     ) -> BaseApp {
         let entry = Box::new(unsafe { Entry::load() }.unwrap());
@@ -214,49 +216,44 @@ impl BaseApp {
         let command_pool = unsafe { logical_device.create_command_pool(&command_pool_info, None) }
             .expect("Could not create command pool!");
 
-        let verts = vec![
-            vec2(-1.0, -1.0),
-            vec2(1.0, -1.0),
-            vec2(-1.0, 1.0),
-            vec2(1.0, 1.0),
-        ];
-
-        let indices: Vec<u16> = vec![0, 1, 2, 1, 3, 2];
-
         let vertex_buffer = engine_core::create_vertex_buffer(
             &instance,
             &physical_device,
             &logical_device,
-            (std::mem::size_of::<Vec2>() * 4) as u64,
+            (std::mem::size_of::<VertexType>() * vertices.len()) as u64,
         );
         {
+            let vert_len = vertices.len();
+
             let mut staging_buffer = engine_core::create_staging_buffer(
                 &instance,
                 &physical_device,
                 &logical_device,
-                (std::mem::size_of::<Vec2>() * 4) as u64,
+                (std::mem::size_of::<VertexType>() * vert_len) as u64,
             );
             staging_buffer.map_buffer_memory();
-
-            unsafe { engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), verts) };
+            
+            unsafe { engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), vertices) };
             engine_core::copy_buffer(
                 &logical_device,
                 command_pool,
                 graphics_queue,
                 *staging_buffer,
                 *vertex_buffer,
-                (std::mem::size_of::<Vec2>() * 4) as u64,
+                (std::mem::size_of::<VertexType>() * vert_len) as u64,
             );
         }
 
         let index_buffer =
             engine_core::create_index_buffer(&instance, &physical_device, &logical_device, 6); //6 indices necessary to specify rect
         {
+            let indices_len = indices.len();
+
             let mut staging_buffer = engine_core::create_staging_buffer(
                 &instance,
                 &physical_device,
                 &logical_device,
-                (std::mem::size_of::<u16>() * 6) as u64,
+                (std::mem::size_of::<IndexType>() * indices_len) as u64,
             );
             staging_buffer.map_buffer_memory();
 
@@ -269,7 +266,7 @@ impl BaseApp {
                 graphics_queue,
                 *staging_buffer,
                 *index_buffer,
-                (std::mem::size_of::<u16>() * 6) as u64,
+                (std::mem::size_of::<IndexType>() * indices_len) as u64,
             );
         }
 

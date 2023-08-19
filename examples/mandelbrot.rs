@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Required to prevent console window from appearing on Windows
 
 use ash::vk;
+use glam::vec2;
 use std::mem::size_of;
 use std::rc::Rc;
 use std::time;
@@ -24,6 +25,16 @@ fn main() {
         )
         .unwrap(),
     ];
+
+    // Vertices
+    let verts = vec![
+        vec2(-1.0, -1.0),
+        vec2(1.0, -1.0),
+        vec2(-1.0, 1.0),
+        vec2(1.0, 1.0),
+    ];
+    let indices: Vec<u16> = vec![0, 1, 2, 1, 3, 2];
+    
     let vertex_input_descriptors = {
 
         let binding = vec![*vk::VertexInputBindingDescription::builder()
@@ -41,7 +52,7 @@ fn main() {
             attributes: Rc::new(attribute),
         }
     };
-    let mut vulkan_app = BaseApp::new(window, APP_TITLE, &shaders_loaded, &vertex_input_descriptors);
+    let mut vulkan_app = BaseApp::new(window, APP_TITLE, &shaders_loaded, verts, indices, &vertex_input_descriptors);
 
     //Tracks which frame the CPU is currently writing commands for
     //*Not* a framecounter, this value is mod MAX_FRAMES_IN_FLIGHT
@@ -88,12 +99,12 @@ fn main() {
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         //Swapchain is outdated, recreate it before continuing
                         vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors);
-                        return;
-                    }
+                        return; //Exits current event loop iteration
+                    },
                     _ => panic!("Could not acquire image from swapchain!"),
                 };
 
-                // Reset fence. This is done now, as if the swapchain is outdated, it causes an early return to the event loop
+                // Reset fence. This is done now, since if the swapchain is outdated, it causes an early return to the event loop
                 vulkan_app.reset_in_flight_fence(current_frame);
 
                 // Change time constant if zooming is enabled
