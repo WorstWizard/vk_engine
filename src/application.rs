@@ -1,4 +1,4 @@
-use crate::engine_core::{self, VertexInputDescriptors, ValidIndexBufferType};
+use crate::engine_core::{self, ValidIndexBufferType, VertexInputDescriptors};
 use crate::engine_core::{MAX_FRAMES_IN_FLIGHT, VALIDATION_ENABLED, VALIDATION_LAYERS};
 use ash::{
     extensions::{
@@ -87,13 +87,14 @@ impl Drop for BaseApp {
 }
 
 impl BaseApp {
-    pub fn new<VertexType: Sized, IndexType: ValidIndexBufferType>(
+    pub fn new<VertexType: Sized, IndexType: ValidIndexBufferType, UBOType: Sized>(
         window: winit::window::Window,
         app_name: &str,
         shaders: &Vec<crate::shaders::Shader>,
         vertices: Vec<VertexType>,
         indices: Vec<IndexType>,
         vertex_input_descriptors: &VertexInputDescriptors,
+        uniforms: Option<Vec<UBOType>>,
     ) -> BaseApp {
         let entry = Box::new(unsafe { Entry::load() }.unwrap());
 
@@ -232,8 +233,10 @@ impl BaseApp {
                 (std::mem::size_of::<VertexType>() * vert_len) as u64,
             );
             staging_buffer.map_buffer_memory();
-            
-            unsafe { engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), vertices) };
+
+            unsafe {
+                engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), vertices)
+            };
             engine_core::copy_buffer(
                 &logical_device,
                 command_pool,
@@ -245,7 +248,7 @@ impl BaseApp {
         }
 
         let index_buffer =
-            engine_core::create_index_buffer(&instance, &physical_device, &logical_device, 6); //6 indices necessary to specify rect
+            engine_core::create_index_buffer(&instance, &physical_device, &logical_device, indices.len());
         {
             let indices_len = indices.len();
 
@@ -476,7 +479,7 @@ impl BaseApp {
     pub fn recreate_swapchain(
         &mut self,
         shaders: &Vec<crate::shaders::Shader>,
-        vertex_input_descriptors: &VertexInputDescriptors
+        vertex_input_descriptors: &VertexInputDescriptors,
     ) {
         unsafe {
             self.logical_device.device_wait_idle().unwrap();
