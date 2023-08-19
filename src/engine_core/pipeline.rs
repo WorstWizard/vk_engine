@@ -5,7 +5,6 @@ use glam::*;
 use std::ffi::CStr;
 use std::mem::size_of;
 use std::os::raw::c_char;
-use std::rc::Rc;
 
 const DEFAULT_ENTRY: *const c_char = cstr!("main").as_ptr();
 
@@ -29,8 +28,8 @@ pub fn default_pipeline(
     //     .offset(0)];
     
     // Vertex input settings
-    let binding_descriptions = Rc::clone(&vertex_input_descriptors.bindings);
-    let attribute_descriptions = Rc::clone(&vertex_input_descriptors.attributes);
+    let binding_descriptions = &vertex_input_descriptors.bindings;
+    let attribute_descriptions = &vertex_input_descriptors.attributes;
     let pipeline_vertex_input_state_info = vk::PipelineVertexInputStateCreateInfo::builder()
         .vertex_binding_descriptions(binding_descriptions.as_slice())
         .vertex_attribute_descriptions(attribute_descriptions.as_slice());
@@ -205,6 +204,6 @@ fn create_shader_module(
 
 #[derive(Clone)]
 pub struct VertexInputDescriptors {
-    pub bindings: Rc<Vec<vk::VertexInputBindingDescription>>,
-    pub attributes: Rc<Vec<vk::VertexInputAttributeDescription>>
+    pub bindings: Vec<vk::VertexInputBindingDescription>,
+    pub attributes: Vec<vk::VertexInputAttributeDescription>
 }

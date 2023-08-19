@@ -3,7 +3,6 @@
 use ash::vk;
 use glam::vec2;
 use std::mem::size_of;
-use std::rc::Rc;
 use std::time;
 use vk_engine::{init_window, BaseApp};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
@@ -48,8 +47,8 @@ fn main() {
             .offset(0)];
         
         vk_engine::VertexInputDescriptors{
-            bindings: Rc::new(binding),
-            attributes: Rc::new(attribute),
+            bindings: binding,
+            attributes: attribute,
         }
     };
     let mut vulkan_app = BaseApp::new(window, APP_TITLE, &shaders_loaded, verts, indices, &vertex_input_descriptors);
