@@ -90,7 +90,7 @@ impl BaseApp {
     pub fn new(
         window: winit::window::Window,
         app_name: &str,
-        shaders: Vec<crate::shaders::Shader>,
+        shaders: &Vec<crate::shaders::Shader>,
         vertex_input_descriptors: &VertexInputDescriptors,
     ) -> BaseApp {
         let entry = Box::new(unsafe { Entry::load() }.unwrap());
@@ -194,7 +194,7 @@ impl BaseApp {
                 &logical_device,
                 swapchain_extent,
                 image_format,
-                shaders,
+                &shaders,
                 vertex_input_descriptors,
                 push_constants,
             );
@@ -478,7 +478,7 @@ impl BaseApp {
     This error is non-fatal and largely unpreventable without a lot of runtime checks in that function, so for now it is ignored */
     pub fn recreate_swapchain(
         &mut self,
-        shaders: Vec<crate::shaders::Shader>,
+        shaders: &Vec<crate::shaders::Shader>,
         vertex_input_descriptors: &VertexInputDescriptors
     ) {
         unsafe {

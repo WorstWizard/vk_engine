@@ -243,7 +243,7 @@ pub fn create_graphics_pipeline(
     logical_device: &Device,
     swapchain_extent: vk::Extent2D,
     image_format: vk::Format,
-    shaders: Vec<shaders::Shader>,
+    shaders: &Vec<shaders::Shader>,
     vertex_input_descriptors: &VertexInputDescriptors,
     push_constants: [f32; 1],
 ) -> (

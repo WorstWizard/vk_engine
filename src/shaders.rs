@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::path::Path;
+//use std::rc::Rc;
 
-#[derive(Clone)]
 pub struct Shader {
     pub data: Vec<u32>,
     pub shader_type: ShaderType,

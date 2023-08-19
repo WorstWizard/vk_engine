@@ -41,7 +41,7 @@ fn main() {
             attributes: Rc::new(attribute),
         }
     };
-    let mut vulkan_app = BaseApp::new(window, APP_TITLE, shaders_loaded.clone(), &vertex_input_descriptors);
+    let mut vulkan_app = BaseApp::new(window, APP_TITLE, &shaders_loaded, &vertex_input_descriptors);
 
     //Tracks which frame the CPU is currently writing commands for
     //*Not* a framecounter, this value is mod MAX_FRAMES_IN_FLIGHT
@@ -87,7 +87,7 @@ fn main() {
                     Ok(i) => i,
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         //Swapchain is outdated, recreate it before continuing
-                        vulkan_app.recreate_swapchain(shaders_loaded.clone(), &vertex_input_descriptors);
+                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors);
                         return;
                     }
                     _ => panic!("Could not acquire image from swapchain!"),
@@ -135,7 +135,7 @@ fn main() {
                     Ok(_) => (),
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         //Swapchain might be outdated again
-                        vulkan_app.recreate_swapchain(shaders_loaded.clone(), &vertex_input_descriptors);
+                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors);
                         return;
                     }
                     _ => panic!("Could not present image!"),

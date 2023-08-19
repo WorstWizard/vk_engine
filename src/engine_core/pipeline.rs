@@ -13,7 +13,7 @@ pub fn default_pipeline(
     logical_device: &Device,
     render_pass: vk::RenderPass,
     swapchain_extent: vk::Extent2D,
-    shaders: Vec<Shader>,
+    shaders: &Vec<Shader>,
     vertex_input_descriptors: &VertexInputDescriptors,
     push_constants: [f32; 1],
 ) -> (vk::Pipeline, vk::PipelineLayout, vk::DescriptorSetLayout) {
@@ -108,13 +108,13 @@ pub fn default_pipeline(
         unsafe { logical_device.create_pipeline_layout(&pipeline_layout_info, None) }.unwrap();
 
     let shader_module_vec = shaders
-        .into_iter()
+        .iter()
         .map(|shader| create_shader_module(logical_device, shader))
-        .collect::<Vec<(vk::ShaderModule, vk::PipelineShaderStageCreateInfoBuilder)>>();
+        .collect::<Vec<(vk::ShaderModule, vk::PipelineShaderStageCreateInfo)>>();
     let shader_modules = shader_module_vec.as_slice();
 
     let shader_stages: Vec<vk::PipelineShaderStageCreateInfo> =
-        shader_modules.iter().map(|pair| *pair.1).collect();
+        shader_modules.iter().map(|pair| pair.1).collect();
 
     let graphics_pipeline_infos = [*vk::GraphicsPipelineCreateInfo::builder()
         .stages(&shader_stages)
@@ -183,8 +183,8 @@ pub fn default_render_pass(logical_device: &Device, image_format: vk::Format) ->
 
 fn create_shader_module(
     logical_device: &Device,
-    shader: Shader,
-) -> (vk::ShaderModule, vk::PipelineShaderStageCreateInfoBuilder) {
+    shader: &Shader,
+) -> (vk::ShaderModule, vk::PipelineShaderStageCreateInfo) {
     let entry_point = unsafe { CStr::from_ptr(DEFAULT_ENTRY) };
     let shader_stage_flag = match shader.shader_type {
         ShaderType::Vertex => vk::ShaderStageFlags::VERTEX,
@@ -200,7 +200,7 @@ fn create_shader_module(
         .module(shader_module)
         .name(entry_point);
 
-    (shader_module, stage_info)
+    (shader_module, *stage_info)
 }
 
 #[derive(Clone)]
