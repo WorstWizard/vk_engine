@@ -30,7 +30,7 @@ pub struct BaseApp {
     command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
-    pub descriptor_set_layout: vk::DescriptorSetLayout,
+    pub descriptor_set_layout: Option<vk::DescriptorSetLayout>,
     pub graphics_pipeline_layout: vk::PipelineLayout,
     pub graphics_pipeline: vk::Pipeline,
     image_views: Vec<vk::ImageView>,
@@ -95,6 +95,7 @@ impl BaseApp {
         indices: Vec<IndexType>,
         vertex_input_descriptors: &VertexInputDescriptors,
         uniforms: Option<Vec<UBOType>>,
+        descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>
     ) -> BaseApp {
         let entry = Box::new(unsafe { Entry::load() }.unwrap());
 
@@ -199,6 +200,7 @@ impl BaseApp {
                 image_format,
                 &shaders,
                 vertex_input_descriptors,
+                descriptor_set_bindings,
                 push_constants,
             );
 
@@ -273,16 +275,30 @@ impl BaseApp {
             );
         }
 
-        struct UniformBufferObject {
-            _time: f32,
-        }
-        let uniform_buffers = engine_core::create_uniform_buffers(
-            &instance,
-            &physical_device,
-            &logical_device,
-            std::mem::size_of::<UniformBufferObject>() as u64,
-            MAX_FRAMES_IN_FLIGHT,
-        );
+        //// Uniform buffers
+        let uniform_buffers = 
+        if let Some(ubo_vec) = &uniforms {
+            engine_core::create_uniform_buffers(
+                &instance,
+                &physical_device,
+                &logical_device,
+                (std::mem::size_of::<UBOType>() * ubo_vec.len()) as u64,
+                MAX_FRAMES_IN_FLIGHT,
+            )
+        } else {
+            engine_core::create_uniform_buffers(
+                &instance,
+                &physical_device,
+                &logical_device,
+                0_u64,
+                0,
+            )
+        };
+
+        /// Descriptor pool
+        let descriptor_pool = {
+            vk::DescriptorPoolSize::builder().ty(vk::DescriptorType::UNIFORM_BUFFER).descriptor_count(MAX_FRAMES_IN_FLIGHT as u32);
+        };
 
         let command_buffers = engine_core::allocate_command_buffers(
             &logical_device,
@@ -480,6 +496,7 @@ impl BaseApp {
         &mut self,
         shaders: &Vec<crate::shaders::Shader>,
         vertex_input_descriptors: &VertexInputDescriptors,
+        descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>,
     ) {
         unsafe {
             self.logical_device.device_wait_idle().unwrap();
@@ -506,6 +523,7 @@ impl BaseApp {
                 image_format,
                 shaders,
                 vertex_input_descriptors,
+                descriptor_set_bindings,
                 [0.0],
             );
         let framebuffers = engine_core::create_framebuffers(
@@ -533,8 +551,10 @@ impl BaseApp {
             .destroy_pipeline(self.graphics_pipeline, None);
         self.logical_device
             .destroy_pipeline_layout(self.graphics_pipeline_layout, None);
-        self.logical_device
-            .destroy_descriptor_set_layout(self.descriptor_set_layout, None);
+        if self.descriptor_set_layout.is_some() {
+            self.logical_device
+                .destroy_descriptor_set_layout(self.descriptor_set_layout.unwrap(), None);
+        }
         self.logical_device
             .destroy_render_pass(self.render_pass, None);
         for view in self.image_views.drain(..) {

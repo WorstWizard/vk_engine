@@ -14,9 +14,9 @@ pub fn default_pipeline(
     swapchain_extent: vk::Extent2D,
     shaders: &Vec<Shader>,
     vertex_input_descriptors: &VertexInputDescriptors,
+    descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>,
     push_constants: [f32; 1],
-) -> (vk::Pipeline, vk::PipelineLayout, vk::DescriptorSetLayout) {
-    
+) -> (vk::Pipeline, vk::PipelineLayout, Option<vk::DescriptorSetLayout>) {
     // let binding_descriptions = [*vk::VertexInputBindingDescription::builder()
     //     .binding(0)
     //     .stride(size_of::<Vec2>() as u32)
@@ -26,7 +26,7 @@ pub fn default_pipeline(
     //     .location(0)
     //     .format(vk::Format::R32G32_SFLOAT)
     //     .offset(0)];
-    
+
     // Vertex input settings
     let binding_descriptions = &vertex_input_descriptors.bindings;
     let attribute_descriptions = &vertex_input_descriptors.attributes;
@@ -79,20 +79,26 @@ pub fn default_pipeline(
         .attachments(&pipeline_color_blend_attachment_states);
 
     // Descriptor set layout
-    let descriptor_set_binding = [*vk::DescriptorSetLayoutBinding::builder()
-        .binding(0)
-        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::VERTEX)];
-    let descriptor_set_layout_info =
-        vk::DescriptorSetLayoutCreateInfo::builder().bindings(&descriptor_set_binding);
-    let descriptor_set_layout =
-        [
-            unsafe {
-                logical_device.create_descriptor_set_layout(&descriptor_set_layout_info, None)
-            }
-            .unwrap(),
-        ];
+    let descriptor_set_layout = {
+        if let Some(descriptors) = descriptor_set_bindings {
+            let descriptor_set_layout_info =
+                vk::DescriptorSetLayoutCreateInfo::builder().bindings(&descriptors.as_slice());
+    
+            Some(
+                unsafe {
+                    logical_device.create_descriptor_set_layout(&descriptor_set_layout_info, None)
+                }
+                .unwrap(),
+            )
+        } else {
+            None
+        }
+    };
+    // let descriptor_set_binding = [*vk::DescriptorSetLayoutBinding::builder()
+    //     .binding(0)
+    //     .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+    //     .descriptor_count(1)
+    //     .stage_flags(vk::ShaderStageFlags::VERTEX)];
 
     // Pipeline layout
     let push_constant_ranges = [*vk::PushConstantRange::builder()
@@ -100,11 +106,15 @@ pub fn default_pipeline(
         .offset(0)
         .size((push_constants.len() * size_of::<f32>()) as u32)];
 
-    let pipeline_layout_info = vk::PipelineLayoutCreateInfo::builder()
-        .set_layouts(&descriptor_set_layout)
+    let mut pipeline_layout_info = vk::PipelineLayoutCreateInfo::builder()
         .push_constant_ranges(&push_constant_ranges);
-    let pipeline_layout =
-        unsafe { logical_device.create_pipeline_layout(&pipeline_layout_info, None) }.unwrap();
+    let pipeline_layout = if descriptor_set_layout.is_some() {
+        let layout = [descriptor_set_layout.unwrap()];
+        pipeline_layout_info = pipeline_layout_info.set_layouts(&layout);
+        unsafe { logical_device.create_pipeline_layout(&pipeline_layout_info, None) }.unwrap()
+    } else {
+        unsafe { logical_device.create_pipeline_layout(&pipeline_layout_info, None) }.unwrap()
+    };
 
     let shader_module_vec = shaders
         .iter()
@@ -143,7 +153,7 @@ pub fn default_pipeline(
         }
     }
 
-    (graphics_pipeline, pipeline_layout, descriptor_set_layout[0])
+    (graphics_pipeline, pipeline_layout, descriptor_set_layout)
 }
 
 pub fn default_render_pass(logical_device: &Device, image_format: vk::Format) -> vk::RenderPass {
@@ -205,5 +215,5 @@ fn create_shader_module(
 #[derive(Clone)]
 pub struct VertexInputDescriptors {
     pub bindings: Vec<vk::VertexInputBindingDescription>,
-    pub attributes: Vec<vk::VertexInputAttributeDescription>
+    pub attributes: Vec<vk::VertexInputAttributeDescription>,
 }

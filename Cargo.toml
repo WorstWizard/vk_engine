@@ -16,3 +16,7 @@ glam = { version = "0.24" }
 
 [features]
 shader_compilation = ["dep:shaderc"]
+
+[[example]]
+name = "cube"
+required-features = ["shader_compilation"]

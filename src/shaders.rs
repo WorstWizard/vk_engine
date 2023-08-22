@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::path::Path;
-//use std::rc::Rc;
 
 pub struct Shader {
     pub data: Vec<u32>,
@@ -34,7 +33,7 @@ pub fn load_shader<P: AsRef<Path>>(
 #[cfg(feature = "shader_compilation")]
 use shaderc::{CompileOptions, Compiler, ShaderKind};
 #[cfg(feature = "shader_compilation")]
-use std::io::Write;
+use std::io::{Write, Read};
 
 #[cfg(feature = "shader_compilation")]
 impl From<ShaderType> for ShaderKind {
@@ -75,7 +74,7 @@ pub fn compile_shader<P: AsRef<Path>>(
         }
 
         // Attempt to compile code, panic on failure
-        let mut compiler = Compiler::new().expect("Could not initialize SPIR-V compiler!");
+        let compiler = Compiler::new().expect("Could not initialize SPIR-V compiler!");
         let options = CompileOptions::new().expect("Could not initialize SPIR-V compiler!");
         let bin_result = compiler
             .compile_into_spirv(

@@ -111,3 +111,27 @@ pub unsafe fn drawing_commands<F>(
     app.logical_device
         .cmd_end_render_pass(app.command_buffers[buffer_index]);
 }
+
+
+// Struct for for MVP matrices, to be used in uniform buffers
+#[repr(C)]
+#[derive(Clone)]
+pub struct MVP {
+    pub model: glam::Mat4,
+    pub view: glam::Mat4,
+    pub projection: glam::Mat4,
+}
+
+pub fn uniform_buffer_descriptor_set_layout_bindings<T: Sized>(uniforms: Vec<T>) -> Vec<vk::DescriptorSetLayoutBinding> {
+    let mut binding_vec = Vec::with_capacity(uniforms.len());
+    for i in 0..uniforms.len() {
+        binding_vec.push(
+            *vk::DescriptorSetLayoutBinding::builder()
+            .binding(i as u32)
+            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::VERTEX)
+        )
+    }
+    binding_vec
+}

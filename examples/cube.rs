@@ -1,10 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Required to prevent console window from appearing on Windows
 
 use ash::vk;
-use glam::{vec2, Vec2};
+use glam::{vec3, Vec3, Mat4};
 use std::mem::size_of;
 use std::time;
-use vk_engine::{init_window, BaseApp};
+use vk_engine::{init_window, BaseApp, uniform_buffer_descriptor_set_layout_bindings};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::ControlFlow;
 
@@ -13,36 +13,50 @@ const APP_TITLE: &str = "KK Engine Test App";
 fn main() {
     let (window, event_loop) = init_window(APP_TITLE, 1000, 1000);
     let shaders_loaded = vec![
-        vk_engine::shaders::load_shader(
-            "examples/shaders_compiled/mandelbrot.vert.spv",
+        vk_engine::shaders::compile_shader(
+            "examples/shaders/cube.vert",
+            None,
             vk_engine::shaders::ShaderType::Vertex,
         )
         .unwrap(),
-        vk_engine::shaders::load_shader(
-            "examples/shaders_compiled/mandelbrot.frag.spv",
+        vk_engine::shaders::compile_shader(
+            "examples/shaders/cube.frag",
+            None,
             vk_engine::shaders::ShaderType::Fragment,
         )
         .unwrap(),
     ];
 
-    // Vertices
+    // Vertices of a cube
     let verts = vec![
-        vec2(-1.0, -1.0),
-        vec2(1.0, -1.0),
-        vec2(-1.0, 1.0),
-        vec2(1.0, 1.0),
+        vec3(-0.5, -0.5, -0.5),
+        vec3(0.5, -0.5, -0.5),
+        vec3(-0.5, 0.5, -0.5),
+        vec3(0.5, 0.5, -0.5),
+        vec3(-0.5, -0.5, 0.5),
+        vec3(0.5, -0.5, 0.5),
+        vec3(-0.5, 0.5, 0.5),
+        vec3(0.5, 0.5, 0.5),
     ];
-    let indices: Vec<u16> = vec![0, 1, 2, 1, 3, 2];
+    let indices: Vec<u16> = vec![
+        0, 2, 1,
+        2, 3, 1,
+        1, 7, 5,
+        1, 3, 7,
+        4, 5, 6,
+        5, 7, 6,
+    ];
+    let num_indices = indices.len() as u32;
 
     let vertex_input_descriptors = {
         let binding = vec![*vk::VertexInputBindingDescription::builder()
             .binding(0)
             .input_rate(vk::VertexInputRate::VERTEX)
-            .stride(size_of::<glam::Vec2>() as u32)];
+            .stride(size_of::<Vec3>() as u32)];
         let attribute = vec![*vk::VertexInputAttributeDescription::builder()
             .binding(0)
             .location(0)
-            .format(vk::Format::R32G32_SFLOAT)
+            .format(vk::Format::R32G32B32_SFLOAT)
             .offset(0)];
 
         vk_engine::VertexInputDescriptors {
@@ -50,15 +64,24 @@ fn main() {
             attributes: attribute,
         }
     };
-    let mut vulkan_app = BaseApp::new::<Vec2, u16, ()>(
+
+    // Uniform buffer object
+    let ubo = vec![vk_engine::MVP {
+        model: Mat4::from_translation(vec3(0.0, 0.0, 5.0)),
+        view: Mat4::IDENTITY,
+        projection: Mat4::perspective_infinite_rh(f32::to_radians(90.0), 1.0, 0.01)
+    }];
+    let ubo_bindings = uniform_buffer_descriptor_set_layout_bindings(ubo.clone());
+
+    let mut vulkan_app = BaseApp::new(
         window,
         APP_TITLE,
         &shaders_loaded,
         verts,
         indices,
         &vertex_input_descriptors,
-        None,
-        None,
+        Some(ubo),
+        Some(ubo_bindings.clone())
     );
 
     //Tracks which frame the CPU is currently writing commands for
@@ -69,7 +92,7 @@ fn main() {
     let mut push_constants = [0.0];
     let mut timer = time::Instant::now();
     let speed = 0.1;
-    let mut zooming = true;
+    let mut spinning = true;
 
     //The event loop hijacks the main thread, so once it closes the entire program exits.
     //All cleanup operations should be handled either before the main loop, inside the mainloop,
@@ -84,7 +107,7 @@ fn main() {
                 WindowEvent::KeyboardInput { input, .. } => match input.virtual_keycode {
                     Some(VirtualKeyCode::Space) => {
                         if input.state == winit::event::ElementState::Pressed {
-                            zooming = !zooming;
+                            spinning = !spinning;
                         }
                     }
                     Some(VirtualKeyCode::Escape) => {
@@ -105,7 +128,7 @@ fn main() {
                     Ok(i) => i,
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         //Swapchain is outdated, recreate it before continuing
-                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, None);
+                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
                         return; //Exits current event loop iteration
                     }
                     _ => panic!("Could not acquire image from swapchain!"),
@@ -114,8 +137,8 @@ fn main() {
                 // Reset fence. This is done now, since if the swapchain is outdated, it causes an early return to the event loop
                 vulkan_app.reset_in_flight_fence(current_frame);
 
-                // Change time constant if zooming is enabled
-                if zooming {
+                // Change time constant if spinning is enabled
+                if spinning {
                     let time_delta = timer.elapsed();
                     push_constants[0] =
                         (push_constants[0] + time_delta.as_secs_f32() * speed) % 2.0;
@@ -131,7 +154,7 @@ fn main() {
                             |app| {
                                 app.logical_device.cmd_draw_indexed(
                                     app.command_buffers[current_frame],
-                                    6,
+                                    num_indices,
                                     1,
                                     0,
                                     0,
@@ -153,7 +176,7 @@ fn main() {
                     Ok(_) => (),
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         //Swapchain might be outdated again
-                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, None);
+                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
                         return;
                     }
                     _ => panic!("Could not present image!"),
