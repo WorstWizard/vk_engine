@@ -477,6 +477,10 @@ pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: V
     std::ptr::copy_nonoverlapping(data.as_ptr(), buffer_pointer as *mut T, data.len());
 }
 
+pub unsafe fn write_struct_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: *const T) {
+    std::ptr::copy_nonoverlapping(data, buffer_pointer as *mut T, 1);
+}
+
 /// Immediately sends command to graphics queue to copy data from staging buffer to vertex buffer. Blocks until transfer completes.
 pub fn copy_buffer(
     logical_device: &Device,

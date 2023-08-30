@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Required to prevent console window from appearing on Windows
 
 use ash::vk;
-use glam::{vec3, Vec3, Mat4};
+use glam::{vec3, Vec3, Mat4, Quat};
+use vk_engine::engine_core::write_struct_to_buffer;
 use std::mem::size_of;
 use std::time;
 use vk_engine::{init_window, BaseApp, uniform_buffer_descriptor_set_layout_bindings};
@@ -39,13 +40,20 @@ fn main() {
         vec3(0.5, 0.5, 0.5),
     ];
     let indices: Vec<u16> = vec![
-        0, 2, 1,
-        2, 3, 1,
-        // 1, 7, 5,
-        // 1, 3, 7,
-        // 4, 5, 6,
-        // 5, 7, 6,
+        0, 1, 2, //front
+        1, 3, 2,
+        5, 4, 6, //back
+        5, 6, 7,
+        4, 0, 6, //left
+        0, 2, 6,
+        1, 5, 3, //right
+        5, 7, 3,
+        4, 5, 0, //top
+        5, 1, 0,
+        2, 3, 6, //bottom
+        3, 7, 6
     ];
+
     let num_indices = indices.len() as u32;
 
     let vertex_input_descriptors = {
@@ -66,12 +74,12 @@ fn main() {
     };
 
     // Uniform buffer object
-    let ubo = vec![vk_engine::MVP {
+    let ubo_vec: Vec<vk_engine::MVP> = vec![vk_engine::MVP {
         model: Mat4::from_translation(vec3(0.0, 0.0, 5.0)),
-        view: Mat4::IDENTITY,
+        view: Mat4::look_at_rh(Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, -1.0, 0.0)),
         projection: Mat4::perspective_infinite_rh(f32::to_radians(90.0), 1.0, 0.01)
     }];
-    let ubo_bindings = uniform_buffer_descriptor_set_layout_bindings(ubo.clone());
+    let ubo_bindings = uniform_buffer_descriptor_set_layout_bindings(1);
 
     let mut vulkan_app = BaseApp::new(
         window,
@@ -80,7 +88,7 @@ fn main() {
         verts,
         indices,
         &vertex_input_descriptors,
-        Some(ubo),
+        Some(ubo_vec),
         Some(ubo_bindings.clone())
     );
 
@@ -91,8 +99,9 @@ fn main() {
     //For the animation
     let mut push_constants = [0.0];
     let mut timer = time::Instant::now();
-    let speed = 0.1;
+    let speed = 0.3;
     let mut spinning = true;
+    let mut theta = 0.0;
 
     //The event loop hijacks the main thread, so once it closes the entire program exits.
     //All cleanup operations should be handled either before the main loop, inside the mainloop,
@@ -115,6 +124,11 @@ fn main() {
                     }
                     _ => (),
                 },
+                // On some platforms (occurs on Windows 10 as of writing), the swapchain is not marked as suboptimal/out-of-date when
+                // the window is resized, so here it is polled explicitly via winit to ensure the swapchain remains correctly sized
+                WindowEvent::Resized(new_size) => {
+                    vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
+                }
                 _ => (),
             },
             Event::MainEventsCleared => {
@@ -140,12 +154,31 @@ fn main() {
                 // Change time constant if spinning is enabled
                 if spinning {
                     let time_delta = timer.elapsed();
-                    push_constants[0] =
-                        (push_constants[0] + time_delta.as_secs_f32() * speed) % 2.0;
+                    theta = (theta + time_delta.as_secs_f32() * speed) % (2.0 * 3.14159265);
                 }
+                
+                let eye = Vec3::new(0.0, -1.0, 0.0);
+                let model_center = Vec3::new(0.0, 0.0, 2.0);
+                let up_direction = Vec3::new(0.0, -1.0, 0.0);
+                let aspect_ratio = vulkan_app.swapchain_extent.width as f32 / vulkan_app.swapchain_extent.height as f32;
 
+                let model = Mat4::from_rotation_translation(Quat::from_rotation_y(theta), model_center);
+                let view = Mat4::look_at_lh(eye, model_center, up_direction);
+                let projection = Mat4::perspective_infinite_lh(f32::to_radians(90.0), aspect_ratio, 0.01);
+
+                let mut correction_mat = Mat4::IDENTITY;
+                correction_mat.y_axis = glam::Vec4::new(0.0, -1.0, 0.0, 0.0);
+
+                let ubo = vk_engine::MVP {
+                    model,
+                    view: correction_mat.mul_mat4(&view),
+                    projection
+                };
                 // Copy data to uniform buffer
-                //vulkan_app.uniform_buffers[0]
+                unsafe { write_struct_to_buffer(
+                    vulkan_app.uniform_buffers[current_frame].memory_ptr.expect("Uniform buffer memory has not been mapped!"),
+                    &ubo as *const vk_engine::MVP
+                ) };
 
                 // Record drawing commands into command buffer for current frame
                 unsafe {

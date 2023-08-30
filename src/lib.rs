@@ -130,9 +130,9 @@ pub struct MVP {
     pub projection: glam::Mat4,
 }
 
-pub fn uniform_buffer_descriptor_set_layout_bindings<T: Sized>(uniforms: Vec<T>) -> Vec<vk::DescriptorSetLayoutBinding> {
-    let mut binding_vec = Vec::with_capacity(uniforms.len());
-    for i in 0..uniforms.len() {
+pub fn uniform_buffer_descriptor_set_layout_bindings(num_uniforms: usize) -> Vec<vk::DescriptorSetLayoutBinding> {
+    let mut binding_vec = Vec::with_capacity(num_uniforms);
+    for i in 0..num_uniforms {
         binding_vec.push(
             *vk::DescriptorSetLayoutBinding::builder()
             .binding(i as u32)
