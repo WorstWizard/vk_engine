@@ -41,10 +41,10 @@ fn main() {
     let indices: Vec<u16> = vec![
         0, 2, 1,
         2, 3, 1,
-        1, 7, 5,
-        1, 3, 7,
-        4, 5, 6,
-        5, 7, 6,
+        // 1, 7, 5,
+        // 1, 3, 7,
+        // 4, 5, 6,
+        // 5, 7, 6,
     ];
     let num_indices = indices.len() as u32;
 
@@ -144,6 +144,9 @@ fn main() {
                         (push_constants[0] + time_delta.as_secs_f32() * speed) % 2.0;
                 }
 
+                // Copy data to uniform buffer
+                //vulkan_app.uniform_buffers[0]
+
                 // Record drawing commands into command buffer for current frame
                 unsafe {
                     vulkan_app.record_command_buffer(current_frame, |app| {
@@ -152,6 +155,7 @@ fn main() {
                             current_frame,
                             image_index,
                             |app| {
+
                                 app.logical_device.cmd_draw_indexed(
                                     app.command_buffers[current_frame],
                                     num_indices,

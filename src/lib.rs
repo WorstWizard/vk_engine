@@ -104,6 +104,14 @@ pub unsafe fn drawing_commands<F>(
         0,
         vk::IndexType::UINT16,
     );
+    let empty_vec = Vec::<u32>::with_capacity(0);
+    app.logical_device.cmd_bind_descriptor_sets(
+        app.command_buffers[buffer_index],
+        vk::PipelineBindPoint::GRAPHICS,
+        app.graphics_pipeline_layout,
+        0,
+        &[app.descriptor_sets[buffer_index]],
+        &empty_vec);
 
     commands(app);
 

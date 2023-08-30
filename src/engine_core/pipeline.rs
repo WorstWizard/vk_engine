@@ -86,6 +86,7 @@ pub fn default_pipeline(
     
             Some(
                 unsafe {
+                    println!("making descriptor set layout");
                     logical_device.create_descriptor_set_layout(&descriptor_set_layout_info, None)
                 }
                 .unwrap(),

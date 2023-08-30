@@ -24,12 +24,14 @@ pub struct BaseApp {
     // Changing the order will likely cause bad cleanup behaviour.
     pub sync: engine_core::SyncPrims,
     pub command_buffers: Vec<vk::CommandBuffer>,
+    descriptor_pool: vk::DescriptorPool,
     pub index_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
     pub vertex_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
     pub uniform_buffers: ManuallyDrop<Vec<engine_core::ManagedBuffer>>,
     command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
+    pub descriptor_sets: Vec<vk::DescriptorSet>,
     pub descriptor_set_layout: Option<vk::DescriptorSetLayout>,
     pub graphics_pipeline_layout: vk::PipelineLayout,
     pub graphics_pipeline: vk::Pipeline,
@@ -61,6 +63,12 @@ impl Drop for BaseApp {
                 self.logical_device
                     .destroy_fence(self.sync.in_flight[i], None);
             }
+
+            self.logical_device.destroy_descriptor_pool(self.descriptor_pool, None);
+
+            // Destroying this manually causes an error, guessing ash does it automatically on drop,
+            // which it otherwise doesn't with other objects
+            //self.logical_device.destroy_descriptor_set_layout(self.descriptor_set_layout.unwrap(), None);
 
             //Explicitly dropping buffers to ensure that the logical device still exists when they do
             ManuallyDrop::drop(&mut self.vertex_buffer);
@@ -295,11 +303,48 @@ impl BaseApp {
             )
         };
 
-        /// Descriptor pool
+        //// Descriptor pool
         let descriptor_pool = {
-            vk::DescriptorPoolSize::builder().ty(vk::DescriptorType::UNIFORM_BUFFER).descriptor_count(MAX_FRAMES_IN_FLIGHT as u32);
+            let pool_size = [*vk::DescriptorPoolSize::builder()
+                .ty(vk::DescriptorType::UNIFORM_BUFFER)
+                .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32)];
+            let pool_info = vk::DescriptorPoolCreateInfo::builder()
+                .pool_sizes(&pool_size)
+                .max_sets(MAX_FRAMES_IN_FLIGHT as u32);
+            unsafe { logical_device.create_descriptor_pool(&pool_info, None) }.expect("Failed to create descriptor pool")
         };
 
+        //// Descriptor sets
+        let descriptor_sets = {
+            let layouts = vec![descriptor_set_layout.unwrap(); MAX_FRAMES_IN_FLIGHT];
+            let alloc_info = vk::DescriptorSetAllocateInfo::builder()
+                .descriptor_pool(descriptor_pool)
+                .set_layouts(layouts.as_slice());
+            unsafe { logical_device.allocate_descriptor_sets(&alloc_info) }.expect("Failed to allocate descriptor sets")
+        };
+        let descriptor_writes = {
+        let mut v = Vec::with_capacity(descriptor_sets.len());
+            for (i, set) in descriptor_sets.iter().enumerate() {
+                println!("configuring descriptor set {}", i);
+                let descriptor_buffer_info = [*vk::DescriptorBufferInfo::builder()
+                    .buffer(*uniform_buffers[i])
+                    .offset(0)
+                    .range(std::mem::size_of::<UBOType>() as u64)];
+                v.push(
+                    *vk::WriteDescriptorSet::builder()
+                        .dst_set(*set)
+                        .dst_binding(0)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                        .buffer_info(&descriptor_buffer_info)
+                );
+            }
+            v
+        };
+        let empty_vec = Vec::<vk::CopyDescriptorSet>::with_capacity(0);
+        unsafe { logical_device.update_descriptor_sets(&descriptor_writes, &empty_vec) }
+
+        //// Command buffers
         let command_buffers = engine_core::allocate_command_buffers(
             &logical_device,
             command_pool,
@@ -327,12 +372,14 @@ impl BaseApp {
             graphics_pipeline,
             graphics_pipeline_layout,
             descriptor_set_layout,
+            descriptor_sets,
             render_pass,
             framebuffers,
             command_pool,
             vertex_buffer: ManuallyDrop::new(vertex_buffer),
             index_buffer: ManuallyDrop::new(index_buffer),
             uniform_buffers: ManuallyDrop::new(uniform_buffers),
+            descriptor_pool,
             command_buffers,
             sync,
         }
