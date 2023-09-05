@@ -325,7 +325,6 @@ impl BaseApp {
         let descriptor_writes = {
         let mut v = Vec::with_capacity(descriptor_sets.len());
             for (i, set) in descriptor_sets.iter().enumerate() {
-                println!("configuring descriptor set {}", i);
                 let descriptor_buffer_info = [*vk::DescriptorBufferInfo::builder()
                     .buffer(*uniform_buffers[i])
                     .offset(0)
@@ -519,13 +518,13 @@ impl BaseApp {
     pub fn present_image(
         &self,
         image_index: u32,
-        signal_semaphore: vk::Semaphore,
+        wait_semaphore: vk::Semaphore,
     ) -> Result<bool, vk::Result> {
         let swapchain_arr = [self.swapchain];
         let image_index_arr = [image_index];
-        let signal_semaphore_arr = [signal_semaphore];
+        let wait_semaphore_arr = [wait_semaphore];
         let present_info = vk::PresentInfoKHR::builder()
-            .wait_semaphores(&signal_semaphore_arr)
+            .wait_semaphores(&wait_semaphore_arr)
             .swapchains(&swapchain_arr)
             .image_indices(&image_index_arr);
         unsafe {

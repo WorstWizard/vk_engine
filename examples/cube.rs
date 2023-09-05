@@ -97,7 +97,6 @@ fn main() {
     let mut current_frame = 0;
 
     //For the animation
-    let mut push_constants = [0.0];
     let mut timer = time::Instant::now();
     let speed = 0.3;
     let mut spinning = true;
@@ -126,7 +125,7 @@ fn main() {
                 },
                 // On some platforms (occurs on Windows 10 as of writing), the swapchain is not marked as suboptimal/out-of-date when
                 // the window is resized, so here it is polled explicitly via winit to ensure the swapchain remains correctly sized
-                WindowEvent::Resized(new_size) => {
+                WindowEvent::Resized(_) => {
                     vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
                 }
                 _ => (),
@@ -140,7 +139,7 @@ fn main() {
                 // Acquire index of image from the swapchain, signal semaphore once finished
                 let (image_index, _) = match vulkan_app.acquire_next_image(current_frame) {
                     Ok(i) => i,
-                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
+                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
                         //Swapchain is outdated, recreate it before continuing
                         vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
                         return; //Exits current event loop iteration
@@ -198,7 +197,7 @@ fn main() {
                                     0,
                                 );
                             },
-                            &push_constants,
+                            &[0.0],
                         );
                     })
                 };
@@ -211,7 +210,7 @@ fn main() {
                     .present_image(image_index, vulkan_app.sync.render_finished[current_frame])
                 {
                     Ok(_) => (),
-                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
+                    Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
                         //Swapchain might be outdated again
                         vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
                         return;
