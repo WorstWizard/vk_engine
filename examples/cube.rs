@@ -213,7 +213,6 @@ fn main() {
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
                         //Swapchain might be outdated again
                         vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
-                        return;
                     }
                     _ => panic!("Could not present image!"),
                 };
