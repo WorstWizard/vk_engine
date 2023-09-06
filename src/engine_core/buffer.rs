@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 pub struct ManagedBuffer {
     pub logical_device: Rc<Device>,
-    pub memory_size: vk::DeviceSize,
+    // pub memory_size: vk::DeviceSize,
     pub buffer_memory: Option<vk::DeviceMemory>,
     pub buffer: vk::Buffer,
     pub memory_ptr: Option<*mut c_void>,

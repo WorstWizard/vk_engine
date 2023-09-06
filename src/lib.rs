@@ -143,3 +143,12 @@ pub fn uniform_buffer_descriptor_set_layout_bindings(num_uniforms: usize) -> Vec
     }
     binding_vec
 }
+
+pub fn load_image_as_rgba_samples(img_path: &str) -> (Vec<u8>, (u32, u32)) {
+    let img = image::io::Reader::open(img_path).expect(&format!("Could not open '{}'", img_path))
+        .decode().expect(&format!("Could not decode '{}'", img_path));
+    let img_size = (img.width(), img.height());
+    let pixels = img.into_rgba8().into_flat_samples().samples;
+
+    (pixels, img_size)
+}

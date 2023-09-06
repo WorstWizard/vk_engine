@@ -17,16 +17,6 @@ pub fn default_pipeline(
     descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>,
     push_constants: [f32; 1],
 ) -> (vk::Pipeline, vk::PipelineLayout, Option<vk::DescriptorSetLayout>) {
-    // let binding_descriptions = [*vk::VertexInputBindingDescription::builder()
-    //     .binding(0)
-    //     .stride(size_of::<Vec2>() as u32)
-    //     .input_rate(vk::VertexInputRate::VERTEX)];
-    // let attribute_descriptions = [*vk::VertexInputAttributeDescription::builder()
-    //     .binding(0)
-    //     .location(0)
-    //     .format(vk::Format::R32G32_SFLOAT)
-    //     .offset(0)];
-
     // Vertex input settings
     let binding_descriptions = &vertex_input_descriptors.bindings;
     let attribute_descriptions = &vertex_input_descriptors.attributes;
@@ -94,11 +84,6 @@ pub fn default_pipeline(
             None
         }
     };
-    // let descriptor_set_binding = [*vk::DescriptorSetLayoutBinding::builder()
-    //     .binding(0)
-    //     .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-    //     .descriptor_count(1)
-    //     .stage_flags(vk::ShaderStageFlags::VERTEX)];
 
     // Pipeline layout
     let push_constant_ranges = [*vk::PushConstantRange::builder()

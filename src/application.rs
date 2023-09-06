@@ -1,4 +1,4 @@
-use crate::engine_core::{self, ValidIndexBufferType, VertexInputDescriptors};
+use crate::engine_core::{self, ValidIndexBufferType, VertexInputDescriptors, create_staging_buffer, write_vec_to_buffer, copy_buffer};
 use crate::engine_core::{MAX_FRAMES_IN_FLIGHT, VALIDATION_ENABLED, VALIDATION_LAYERS};
 use ash::{
     extensions::{
@@ -9,6 +9,7 @@ use ash::{
 };
 use ash_window;
 use glam::*;
+use image::GenericImageView;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use std::ffi::CString;
 use std::mem::ManuallyDrop;
@@ -350,6 +351,19 @@ impl BaseApp {
             image_views.len() as u32,
         );
 
+        //// Texture image
+        { // Load image texture onto GPU
+            let (img_samples, (w, h)) = crate::load_image_as_rgba_samples("texture.jpg");
+
+            let mut texture_image = engine_core::create_texture_image(&instance, &physical_device, &logical_device, (w, h));
+
+            let mut tex_staging_buffer = create_staging_buffer(&instance, &physical_device, &logical_device, vk::DeviceSize::from((w*h*4) as u64));
+            tex_staging_buffer.map_buffer_memory();
+            unsafe { write_vec_to_buffer(tex_staging_buffer.memory_ptr.unwrap(), img_samples) };
+
+
+        }
+        
         //// Create semaphores for in-render-pass synchronization
         let sync = engine_core::create_sync_primitives(&logical_device);
 

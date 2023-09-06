@@ -10,11 +10,13 @@ use std::rc::Rc;
 use winit::window::Window;
 
 mod buffer;
+mod textures;
 mod phys_device;
 mod pipeline;
 mod swapchain;
 
 pub use buffer::ManagedBuffer;
+pub use textures::ManagedImage;
 pub use pipeline::VertexInputDescriptors;
 
 pub trait ValidIndexBufferType {}
@@ -368,7 +370,7 @@ pub fn create_staging_buffer(
 
     ManagedBuffer {
         logical_device: Rc::clone(logical_device),
-        memory_size,
+        // memory_size,
         buffer: staging_buffer,
         buffer_memory: Some(staging_buffer_memory),
         memory_ptr: None,
@@ -397,7 +399,7 @@ pub fn create_vertex_buffer(
 
     ManagedBuffer {
         logical_device: Rc::clone(logical_device),
-        memory_size,
+        // memory_size,
         buffer: vertex_buffer,
         buffer_memory: Some(vertex_buffer_memory),
         memory_ptr: None,
@@ -427,7 +429,7 @@ pub fn create_index_buffer(
 
     ManagedBuffer {
         logical_device: Rc::clone(logical_device),
-        memory_size,
+        // memory_size,
         buffer: index_buffer,
         buffer_memory: Some(index_buffer_memory),
         memory_ptr: None,
@@ -459,7 +461,7 @@ pub fn create_uniform_buffers(
 
         let mut managed_buffer = ManagedBuffer {
             logical_device: Rc::clone(logical_device),
-            memory_size,
+            // memory_size,
             buffer: uniform_buffer,
             buffer_memory: Some(uniform_buffer_memory),
             memory_ptr: None,
@@ -471,6 +473,21 @@ pub fn create_uniform_buffers(
     uniform_buffers
 }
 
+
+pub fn create_texture_image(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, dimensions: (u32, u32)) -> ManagedImage {
+    let texture_image = textures::create_rgba_texture_image(logical_device, dimensions);
+    let image_memory = Some(textures::allocate_and_bind_image(instance, physical_device, logical_device, texture_image, vk::MemoryPropertyFlags::DEVICE_LOCAL));
+    let managed_image = ManagedImage {
+        logical_device: Rc::clone(logical_device),
+        image: texture_image,
+        image_memory,
+        memory_ptr: None
+    };
+    managed_image
+}
+
+
+
 /// # Safety
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, and `buffer_pointer` must be valid.
 pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: Vec<T>) {
@@ -481,47 +498,54 @@ pub unsafe fn write_struct_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data
     std::ptr::copy_nonoverlapping(data, buffer_pointer as *mut T, 1);
 }
 
-/// Immediately sends command to graphics queue to copy data from staging buffer to vertex buffer. Blocks until transfer completes.
+/// Immediately submits the given commands to the given queue. Blocks until completion.
+pub unsafe fn immediate_commands<F: FnOnce(vk::CommandBuffer) -> ()>(
+    logical_device: &Device,
+    command_pool: vk::CommandPool,
+    queue: vk::Queue,
+    commands: F
+) {
+    let temp_command_buffers = [allocate_command_buffers(logical_device, command_pool, 1)[0]];
+    let recording_info =
+        vk::CommandBufferBeginInfo::builder().flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+    logical_device
+        .begin_command_buffer(temp_command_buffers[0], &recording_info)
+        .unwrap();
+
+    commands(temp_command_buffers[0]);
+
+    logical_device
+        .end_command_buffer(temp_command_buffers[0])
+        .unwrap();
+
+    let submit_info = vk::SubmitInfo::builder().command_buffers(&temp_command_buffers);
+    logical_device
+        .queue_submit(queue, &[*submit_info], vk::Fence::null())
+        .unwrap();
+    logical_device.queue_wait_idle(queue).unwrap();
+    logical_device.free_command_buffers(command_pool, &temp_command_buffers);
+}
+
+/// Immediately sends command to a queue to copy data from src buffer to dst buffer. Blocks until transfer completes.
 pub fn copy_buffer(
     logical_device: &Device,
     command_pool: vk::CommandPool,
-    graphics_queue: vk::Queue,
+    queue: vk::Queue,
     src_buffer: vk::Buffer,
     dst_buffer: vk::Buffer,
     memory_size: vk::DeviceSize,
 ) {
-    let temp_command_buffers = [allocate_command_buffers(logical_device, command_pool, 1)[0]];
-
-    let recording_info =
-        vk::CommandBufferBeginInfo::builder().flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-    unsafe {
-        logical_device
-            .begin_command_buffer(temp_command_buffers[0], &recording_info)
-            .unwrap();
-
-        let copy_region = vk::BufferCopy::builder()
-            .src_offset(0)
-            .dst_offset(0)
-            .size(memory_size);
-        logical_device.cmd_copy_buffer(
-            temp_command_buffers[0],
-            src_buffer,
-            dst_buffer,
-            &[*copy_region],
-        );
-
-        logical_device
-            .end_command_buffer(temp_command_buffers[0])
-            .unwrap();
-    }
-
-    let submit_info = vk::SubmitInfo::builder().command_buffers(&temp_command_buffers);
-
-    unsafe {
-        logical_device
-            .queue_submit(graphics_queue, &[*submit_info], vk::Fence::null())
-            .unwrap();
-        logical_device.queue_wait_idle(graphics_queue).unwrap();
-        logical_device.free_command_buffers(command_pool, &temp_command_buffers);
-    }
+    unsafe { immediate_commands(logical_device, command_pool, queue, |cmd_buffer| {
+            let copy_region = vk::BufferCopy::builder()
+                .src_offset(0)
+                .dst_offset(0)
+                .size(memory_size);
+            logical_device.cmd_copy_buffer(
+                cmd_buffer,
+                src_buffer,
+                dst_buffer,
+                &[*copy_region],
+            );
+        }
+    )}
 }
