@@ -16,7 +16,11 @@ pub fn default_pipeline(
     vertex_input_descriptors: &VertexInputDescriptors,
     descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>,
     push_constants: [f32; 1],
-) -> (vk::Pipeline, vk::PipelineLayout, Option<vk::DescriptorSetLayout>) {
+) -> (
+    vk::Pipeline,
+    vk::PipelineLayout,
+    Option<vk::DescriptorSetLayout>,
+) {
     // Vertex input settings
     let binding_descriptions = &vertex_input_descriptors.bindings;
     let attribute_descriptions = &vertex_input_descriptors.attributes;
@@ -73,7 +77,7 @@ pub fn default_pipeline(
         if let Some(descriptors) = descriptor_set_bindings {
             let descriptor_set_layout_info =
                 vk::DescriptorSetLayoutCreateInfo::builder().bindings(&descriptors.as_slice());
-    
+
             Some(
                 unsafe {
                     logical_device.create_descriptor_set_layout(&descriptor_set_layout_info, None)
@@ -91,8 +95,8 @@ pub fn default_pipeline(
         .offset(0)
         .size((push_constants.len() * size_of::<f32>()) as u32)];
 
-    let mut pipeline_layout_info = vk::PipelineLayoutCreateInfo::builder()
-        .push_constant_ranges(&push_constant_ranges);
+    let mut pipeline_layout_info =
+        vk::PipelineLayoutCreateInfo::builder().push_constant_ranges(&push_constant_ranges);
     let pipeline_layout = if descriptor_set_layout.is_some() {
         let layout = [descriptor_set_layout.unwrap()];
         pipeline_layout_info = pipeline_layout_info.set_layouts(&layout);

@@ -33,7 +33,7 @@ pub fn load_shader<P: AsRef<Path>>(
 #[cfg(feature = "shader_compilation")]
 use shaderc::{CompileOptions, Compiler, ShaderKind};
 #[cfg(feature = "shader_compilation")]
-use std::io::{Write, Read};
+use std::io::{Read, Write};
 
 #[cfg(feature = "shader_compilation")]
 impl From<ShaderType> for ShaderKind {

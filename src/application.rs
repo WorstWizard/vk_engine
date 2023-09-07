@@ -1,4 +1,6 @@
-use crate::engine_core::{self, ValidIndexBufferType, VertexInputDescriptors, create_staging_buffer, write_vec_to_buffer, copy_buffer};
+use crate::engine_core::{
+    self, create_staging_buffer, write_vec_to_buffer, ValidIndexBufferType, VertexInputDescriptors,
+};
 use crate::engine_core::{MAX_FRAMES_IN_FLIGHT, VALIDATION_ENABLED, VALIDATION_LAYERS};
 use ash::{
     extensions::{
@@ -9,7 +11,6 @@ use ash::{
 };
 use ash_window;
 use glam::*;
-use image::GenericImageView;
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use std::ffi::CString;
 use std::mem::ManuallyDrop;
@@ -29,6 +30,7 @@ pub struct BaseApp {
     pub index_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
     pub vertex_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
     pub uniform_buffers: ManuallyDrop<Vec<engine_core::ManagedBuffer>>,
+    texture: ManuallyDrop<engine_core::ManagedImage>,
     command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
@@ -65,7 +67,8 @@ impl Drop for BaseApp {
                     .destroy_fence(self.sync.in_flight[i], None);
             }
 
-            self.logical_device.destroy_descriptor_pool(self.descriptor_pool, None);
+            self.logical_device
+                .destroy_descriptor_pool(self.descriptor_pool, None);
 
             // Destroying this manually causes an error, guessing ash does it automatically on drop,
             // which it otherwise doesn't with other objects
@@ -75,6 +78,7 @@ impl Drop for BaseApp {
             ManuallyDrop::drop(&mut self.vertex_buffer);
             ManuallyDrop::drop(&mut self.index_buffer);
             ManuallyDrop::drop(&mut self.uniform_buffers);
+            ManuallyDrop::drop(&mut self.texture);
 
             self.logical_device
                 .destroy_command_pool(self.command_pool, None);
@@ -104,7 +108,7 @@ impl BaseApp {
         indices: Vec<IndexType>,
         vertex_input_descriptors: &VertexInputDescriptors,
         uniforms: Option<Vec<UBOType>>,
-        descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>
+        descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>,
     ) -> BaseApp {
         let entry = Box::new(unsafe { Entry::load() }.unwrap());
 
@@ -258,8 +262,12 @@ impl BaseApp {
             );
         }
 
-        let index_buffer =
-            engine_core::create_index_buffer(&instance, &physical_device, &logical_device, indices.len());
+        let index_buffer = engine_core::create_index_buffer(
+            &instance,
+            &physical_device,
+            &logical_device,
+            indices.len(),
+        );
         {
             let indices_len = indices.len();
 
@@ -285,8 +293,7 @@ impl BaseApp {
         }
 
         //// Uniform buffers
-        let uniform_buffers = 
-        if let Some(ubo_vec) = &uniforms {
+        let uniform_buffers = if let Some(ubo_vec) = &uniforms {
             engine_core::create_uniform_buffers(
                 &instance,
                 &physical_device,
@@ -312,7 +319,8 @@ impl BaseApp {
             let pool_info = vk::DescriptorPoolCreateInfo::builder()
                 .pool_sizes(&pool_size)
                 .max_sets(MAX_FRAMES_IN_FLIGHT as u32);
-            unsafe { logical_device.create_descriptor_pool(&pool_info, None) }.expect("Failed to create descriptor pool")
+            unsafe { logical_device.create_descriptor_pool(&pool_info, None) }
+                .expect("Failed to create descriptor pool")
         };
 
         //// Descriptor sets
@@ -321,10 +329,11 @@ impl BaseApp {
             let alloc_info = vk::DescriptorSetAllocateInfo::builder()
                 .descriptor_pool(descriptor_pool)
                 .set_layouts(layouts.as_slice());
-            unsafe { logical_device.allocate_descriptor_sets(&alloc_info) }.expect("Failed to allocate descriptor sets")
+            unsafe { logical_device.allocate_descriptor_sets(&alloc_info) }
+                .expect("Failed to allocate descriptor sets")
         };
         let descriptor_writes = {
-        let mut v = Vec::with_capacity(descriptor_sets.len());
+            let mut v = Vec::with_capacity(descriptor_sets.len());
             for (i, set) in descriptor_sets.iter().enumerate() {
                 let descriptor_buffer_info = [*vk::DescriptorBufferInfo::builder()
                     .buffer(*uniform_buffers[i])
@@ -336,13 +345,12 @@ impl BaseApp {
                         .dst_binding(0)
                         .dst_array_element(0)
                         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                        .buffer_info(&descriptor_buffer_info)
+                        .buffer_info(&descriptor_buffer_info),
                 );
             }
             v
         };
-        let empty_vec = Vec::<vk::CopyDescriptorSet>::with_capacity(0);
-        unsafe { logical_device.update_descriptor_sets(&descriptor_writes, &empty_vec) }
+        unsafe { logical_device.update_descriptor_sets(&descriptor_writes, &[]) }
 
         //// Command buffers
         let command_buffers = engine_core::allocate_command_buffers(
@@ -352,39 +360,170 @@ impl BaseApp {
         );
 
         //// Texture image
-        { // Load image texture onto GPU
+        let texture = {
+            // Load image texture onto GPU
             let (img_samples, (w, h)) = crate::load_image_as_rgba_samples("texture.jpg");
 
-            let mut texture_image = engine_core::create_texture_image(&instance, &physical_device, &logical_device, (w, h));
+            let texture_image = engine_core::create_texture_image(
+                &instance,
+                &physical_device,
+                &logical_device,
+                (w, h),
+            );
 
-            let mut tex_staging_buffer = create_staging_buffer(&instance, &physical_device, &logical_device, vk::DeviceSize::from((w*h*4) as u64));
+            let mut tex_staging_buffer = create_staging_buffer(
+                &instance,
+                &physical_device,
+                &logical_device,
+                vk::DeviceSize::from((w * h * 4) as u64),
+            );
             tex_staging_buffer.map_buffer_memory();
             unsafe { write_vec_to_buffer(tex_staging_buffer.memory_ptr.unwrap(), img_samples) };
 
-            fn transition_image_layout(image: vk::Image, format: vk::Format, old_layout: vk::ImageLayout, new_layout: vk::ImageLayout) {
-                let barrier = vk::ImageMemoryBarrier::builder()
+            fn transition_image_layout(
+                logical_device: &Device,
+                command_pool: vk::CommandPool,
+                queue: vk::Queue,
+                image: vk::Image,
+                _format: vk::Format,
+                old_layout: vk::ImageLayout,
+                new_layout: vk::ImageLayout,
+            ) {
+                let mut barrier = vk::ImageMemoryBarrier::builder()
                     .old_layout(old_layout)
                     .new_layout(new_layout)
                     .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                     .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                     .image(image)
-                    .subresource_range(*vk::ImageSubresourceRange::builder()
-                        .aspect_mask(vk::ImageAspectFlags::COLOR)
-                        .base_mip_level(0)
-                        .level_count(1)
-                        .base_array_layer(0)
-                        .layer_count(1))
-                    .src_access_mask(vk::AccessFlags::empty())
-                    .dst_access_mask(vk::AccessFlags::empty());
-                
+                    .subresource_range(
+                        *vk::ImageSubresourceRange::builder()
+                            .aspect_mask(vk::ImageAspectFlags::COLOR)
+                            .base_mip_level(0)
+                            .level_count(1)
+                            .base_array_layer(0)
+                            .layer_count(1),
+                    );
+
+                let src_stage;
+                let dst_stage;
+
+                if old_layout == vk::ImageLayout::UNDEFINED
+                    && new_layout == vk::ImageLayout::TRANSFER_DST_OPTIMAL
+                {
+                    barrier = barrier
+                        .src_access_mask(vk::AccessFlags::empty())
+                        .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE);
+                    src_stage = vk::PipelineStageFlags::TOP_OF_PIPE;
+                    dst_stage = vk::PipelineStageFlags::TRANSFER;
+                } else if old_layout == vk::ImageLayout::TRANSFER_DST_OPTIMAL
+                    && new_layout == vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+                {
+                    barrier = barrier
+                        .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                        .dst_access_mask(vk::AccessFlags::SHADER_READ);
+                    src_stage = vk::PipelineStageFlags::TRANSFER;
+                    dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+                } else {
+                    panic!("Image layout transition not supported!");
+                }
+
                 unsafe {
-                    engine_core::immediate_commands(&logical_device, command_pool, graphics_queue, |cmd_buffer| {
-                        
-                    });
+                    engine_core::immediate_commands(
+                        &logical_device,
+                        command_pool,
+                        queue,
+                        |cmd_buffer| {
+                            logical_device.cmd_pipeline_barrier(
+                                cmd_buffer,
+                                src_stage,
+                                dst_stage,
+                                vk::DependencyFlags::empty(),
+                                &[],
+                                &[],
+                                &[*barrier],
+                            );
+                        },
+                    );
                 }
             }
-        }
-        
+
+            fn copy_buffer_to_image(
+                logical_device: &Device,
+                command_pool: vk::CommandPool,
+                queue: vk::Queue,
+                buffer: vk::Buffer,
+                image: vk::Image,
+                width: u32,
+                height: u32,
+            ) {
+                let region = vk::BufferImageCopy::builder()
+                    .buffer_offset(0)
+                    .buffer_row_length(0)
+                    .buffer_image_height(0)
+                    .image_subresource(
+                        *vk::ImageSubresourceLayers::builder()
+                            .aspect_mask(vk::ImageAspectFlags::COLOR)
+                            .mip_level(0)
+                            .base_array_layer(0)
+                            .layer_count(1),
+                    )
+                    .image_offset(vk::Offset3D { x: 0, y: 0, z: 0 })
+                    .image_extent(vk::Extent3D {
+                        width,
+                        height,
+                        depth: 1,
+                    });
+                unsafe {
+                    engine_core::immediate_commands(
+                        logical_device,
+                        command_pool,
+                        queue,
+                        |cmd_buffer| {
+                            logical_device.cmd_copy_buffer_to_image(
+                                cmd_buffer,
+                                buffer,
+                                image,
+                                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                                &[*region],
+                            );
+                        },
+                    );
+                }
+            }
+
+            transition_image_layout(
+                &logical_device,
+                command_pool,
+                graphics_queue,
+                texture_image.image,
+                vk::Format::R8G8B8A8_SRGB,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            );
+
+            copy_buffer_to_image(
+                &logical_device,
+                command_pool,
+                graphics_queue,
+                tex_staging_buffer.buffer,
+                texture_image.image,
+                w,
+                h,
+            );
+
+            transition_image_layout(
+                &logical_device,
+                command_pool,
+                graphics_queue,
+                texture_image.image,
+                vk::Format::R8G8B8A8_SRGB,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            );
+
+            texture_image
+        };
+
         //// Create semaphores for in-render-pass synchronization
         let sync = engine_core::create_sync_primitives(&logical_device);
 
@@ -413,6 +552,7 @@ impl BaseApp {
             vertex_buffer: ManuallyDrop::new(vertex_buffer),
             index_buffer: ManuallyDrop::new(index_buffer),
             uniform_buffers: ManuallyDrop::new(uniform_buffers),
+            texture: ManuallyDrop::new(texture),
             descriptor_pool,
             command_buffers,
             sync,

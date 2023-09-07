@@ -105,7 +105,11 @@ fn main() {
                     Ok(i) => i,
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         //Swapchain is outdated, recreate it before continuing
-                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, None);
+                        vulkan_app.recreate_swapchain(
+                            &shaders_loaded,
+                            &vertex_input_descriptors,
+                            None,
+                        );
                         return; //Exits current event loop iteration
                     }
                     _ => panic!("Could not acquire image from swapchain!"),
@@ -153,7 +157,11 @@ fn main() {
                     Ok(_) => (),
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) | Err(vk::Result::SUBOPTIMAL_KHR) => {
                         //Swapchain might be outdated again
-                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, None);
+                        vulkan_app.recreate_swapchain(
+                            &shaders_loaded,
+                            &vertex_input_descriptors,
+                            None,
+                        );
                         return;
                     }
                     _ => panic!("Could not present image!"),

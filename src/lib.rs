@@ -104,14 +104,14 @@ pub unsafe fn drawing_commands<F>(
         0,
         vk::IndexType::UINT16,
     );
-    let empty_vec = Vec::<u32>::with_capacity(0);
     app.logical_device.cmd_bind_descriptor_sets(
         app.command_buffers[buffer_index],
         vk::PipelineBindPoint::GRAPHICS,
         app.graphics_pipeline_layout,
         0,
         &[app.descriptor_sets[buffer_index]],
-        &empty_vec);
+        &[],
+    );
 
     commands(app);
 
@@ -119,7 +119,6 @@ pub unsafe fn drawing_commands<F>(
     app.logical_device
         .cmd_end_render_pass(app.command_buffers[buffer_index]);
 }
-
 
 // Struct for for MVP matrices, to be used in uniform buffers
 #[repr(C)]
@@ -130,23 +129,27 @@ pub struct MVP {
     pub projection: glam::Mat4,
 }
 
-pub fn uniform_buffer_descriptor_set_layout_bindings(num_uniforms: usize) -> Vec<vk::DescriptorSetLayoutBinding> {
+pub fn uniform_buffer_descriptor_set_layout_bindings(
+    num_uniforms: usize,
+) -> Vec<vk::DescriptorSetLayoutBinding> {
     let mut binding_vec = Vec::with_capacity(num_uniforms);
     for i in 0..num_uniforms {
         binding_vec.push(
             *vk::DescriptorSetLayoutBinding::builder()
-            .binding(i as u32)
-            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-            .descriptor_count(1)
-            .stage_flags(vk::ShaderStageFlags::VERTEX)
+                .binding(i as u32)
+                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::VERTEX),
         )
     }
     binding_vec
 }
 
 pub fn load_image_as_rgba_samples(img_path: &str) -> (Vec<u8>, (u32, u32)) {
-    let img = image::io::Reader::open(img_path).expect(&format!("Could not open '{}'", img_path))
-        .decode().expect(&format!("Could not decode '{}'", img_path));
+    let img = image::io::Reader::open(img_path)
+        .expect(&format!("Could not open '{}'", img_path))
+        .decode()
+        .expect(&format!("Could not decode '{}'", img_path));
     let img_size = (img.width(), img.height());
     let pixels = img.into_rgba8().into_flat_samples().samples;
 

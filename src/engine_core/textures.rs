@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::ffi::c_void;
+use std::rc::Rc;
 
 use ash::{vk, Device, Instance};
 
@@ -27,10 +27,7 @@ impl ManagedImage {
     /// Panics if there's no memory to unmap (does it matter?)
     pub fn unmap_image_memory(&mut self) {
         if self.memory_ptr.is_some() {
-            unsafe {
-                self.logical_device
-                    .unmap_memory(self.image_memory.unwrap())
-            };
+            unsafe { self.logical_device.unmap_memory(self.image_memory.unwrap()) };
         } else {
             panic!("Attempt to unmap unmapped image memory!");
         }
@@ -40,24 +37,20 @@ impl ManagedImage {
 impl Drop for ManagedImage {
     fn drop(&mut self) {
         unsafe {
-            if let Some(ptr) = self.memory_ptr {
+            if self.memory_ptr.is_some() {
                 self.unmap_image_memory();
             }
             if let Some(memory) = self.image_memory {
                 self.logical_device.free_memory(memory, None);
             }
+            self.logical_device.destroy_image(self.image, None);
         }
     }
 }
 
 pub fn map_image_memory(logical_device: &Device, image_memory: vk::DeviceMemory) -> *mut c_void {
     unsafe {
-        logical_device.map_memory(
-            image_memory,
-            0,
-            vk::WHOLE_SIZE,
-            vk::MemoryMapFlags::empty(),
-        )
+        logical_device.map_memory(image_memory, 0, vk::WHOLE_SIZE, vk::MemoryMapFlags::empty())
     }
     .unwrap()
 }
@@ -105,12 +98,14 @@ pub fn allocate_and_bind_image(
     image_memory
 }
 
-
-
 pub fn create_rgba_texture_image(logical_device: &Device, dimensions: (u32, u32)) -> vk::Image {
     let img_create_info = vk::ImageCreateInfo::builder()
         .image_type(vk::ImageType::TYPE_2D)
-        .extent(vk::Extent3D{ width: dimensions.0, height: dimensions.1, depth: 1 })
+        .extent(vk::Extent3D {
+            width: dimensions.0,
+            height: dimensions.1,
+            depth: 1,
+        })
         .mip_levels(1)
         .array_layers(1)
         .format(vk::Format::R8G8B8A8_SRGB)
@@ -119,8 +114,8 @@ pub fn create_rgba_texture_image(logical_device: &Device, dimensions: (u32, u32)
         .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
         .sharing_mode(vk::SharingMode::EXCLUSIVE)
         .samples(vk::SampleCountFlags::TYPE_1);
-    
-    let image = unsafe{ logical_device.create_image(&img_create_info, None) }.unwrap();
+
+    let image = unsafe { logical_device.create_image(&img_create_info, None) }.unwrap();
 
     image
 }

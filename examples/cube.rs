@@ -1,11 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Required to prevent console window from appearing on Windows
 
 use ash::vk;
-use glam::{vec3, Vec3, Mat4, Quat};
-use vk_engine::engine_core::write_struct_to_buffer;
+use glam::{vec3, Mat4, Quat, Vec3};
 use std::mem::size_of;
 use std::time;
-use vk_engine::{init_window, BaseApp, uniform_buffer_descriptor_set_layout_bindings};
+use vk_engine::engine_core::write_struct_to_buffer;
+use vk_engine::{init_window, uniform_buffer_descriptor_set_layout_bindings, BaseApp};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::ControlFlow;
 
@@ -41,17 +41,12 @@ fn main() {
     ];
     let indices: Vec<u16> = vec![
         0, 1, 2, //front
-        1, 3, 2,
-        5, 4, 6, //back
-        5, 6, 7,
-        4, 0, 6, //left
-        0, 2, 6,
-        1, 5, 3, //right
-        5, 7, 3,
-        4, 5, 0, //top
-        5, 1, 0,
-        2, 3, 6, //bottom
-        3, 7, 6
+        1, 3, 2, 5, 4, 6, //back
+        5, 6, 7, 4, 0, 6, //left
+        0, 2, 6, 1, 5, 3, //right
+        5, 7, 3, 4, 5, 0, //top
+        5, 1, 0, 2, 3, 6, //bottom
+        3, 7, 6,
     ];
 
     let num_indices = indices.len() as u32;
@@ -76,8 +71,12 @@ fn main() {
     // Uniform buffer object
     let ubo_vec: Vec<vk_engine::MVP> = vec![vk_engine::MVP {
         model: Mat4::from_translation(vec3(0.0, 0.0, 5.0)),
-        view: Mat4::look_at_rh(Vec3::ZERO, Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, -1.0, 0.0)),
-        projection: Mat4::perspective_infinite_rh(f32::to_radians(90.0), 1.0, 0.01)
+        view: Mat4::look_at_rh(
+            Vec3::ZERO,
+            Vec3::new(0.0, 0.0, 5.0),
+            Vec3::new(0.0, -1.0, 0.0),
+        ),
+        projection: Mat4::perspective_infinite_rh(f32::to_radians(90.0), 1.0, 0.01),
     }];
     let ubo_bindings = uniform_buffer_descriptor_set_layout_bindings(1);
 
@@ -89,7 +88,7 @@ fn main() {
         indices,
         &vertex_input_descriptors,
         Some(ubo_vec),
-        Some(ubo_bindings.clone())
+        Some(ubo_bindings.clone()),
     );
 
     //Tracks which frame the CPU is currently writing commands for
@@ -126,7 +125,11 @@ fn main() {
                 // On some platforms (occurs on Windows 10 as of writing), the swapchain is not marked as suboptimal/out-of-date when
                 // the window is resized, so here it is polled explicitly via winit to ensure the swapchain remains correctly sized
                 WindowEvent::Resized(_) => {
-                    vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
+                    vulkan_app.recreate_swapchain(
+                        &shaders_loaded,
+                        &vertex_input_descriptors,
+                        Some(ubo_bindings.clone()),
+                    );
                 }
                 _ => (),
             },
@@ -141,7 +144,11 @@ fn main() {
                     Ok(i) => i,
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
                         //Swapchain is outdated, recreate it before continuing
-                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
+                        vulkan_app.recreate_swapchain(
+                            &shaders_loaded,
+                            &vertex_input_descriptors,
+                            Some(ubo_bindings.clone()),
+                        );
                         return; //Exits current event loop iteration
                     }
                     _ => panic!("Could not acquire image from swapchain!"),
@@ -155,15 +162,18 @@ fn main() {
                     let time_delta = timer.elapsed();
                     theta = (theta + time_delta.as_secs_f32() * speed) % (2.0 * 3.14159265);
                 }
-                
+
                 let eye = Vec3::new(0.0, -1.0, 0.0);
                 let model_center = Vec3::new(0.0, 0.0, 2.0);
                 let up_direction = Vec3::new(0.0, -1.0, 0.0);
-                let aspect_ratio = vulkan_app.swapchain_extent.width as f32 / vulkan_app.swapchain_extent.height as f32;
+                let aspect_ratio = vulkan_app.swapchain_extent.width as f32
+                    / vulkan_app.swapchain_extent.height as f32;
 
-                let model = Mat4::from_rotation_translation(Quat::from_rotation_y(theta), model_center);
+                let model =
+                    Mat4::from_rotation_translation(Quat::from_rotation_y(theta), model_center);
                 let view = Mat4::look_at_lh(eye, model_center, up_direction);
-                let projection = Mat4::perspective_infinite_lh(f32::to_radians(90.0), aspect_ratio, 0.01);
+                let projection =
+                    Mat4::perspective_infinite_lh(f32::to_radians(90.0), aspect_ratio, 0.01);
 
                 let mut correction_mat = Mat4::IDENTITY;
                 correction_mat.y_axis = glam::Vec4::new(0.0, -1.0, 0.0, 0.0);
@@ -171,13 +181,17 @@ fn main() {
                 let ubo = vk_engine::MVP {
                     model,
                     view: correction_mat.mul_mat4(&view),
-                    projection
+                    projection,
                 };
                 // Copy data to uniform buffer
-                unsafe { write_struct_to_buffer(
-                    vulkan_app.uniform_buffers[current_frame].memory_ptr.expect("Uniform buffer memory has not been mapped!"),
-                    &ubo as *const vk_engine::MVP
-                ) };
+                unsafe {
+                    write_struct_to_buffer(
+                        vulkan_app.uniform_buffers[current_frame]
+                            .memory_ptr
+                            .expect("Uniform buffer memory has not been mapped!"),
+                        &ubo as *const vk_engine::MVP,
+                    )
+                };
 
                 // Record drawing commands into command buffer for current frame
                 unsafe {
@@ -187,7 +201,6 @@ fn main() {
                             current_frame,
                             image_index,
                             |app| {
-
                                 app.logical_device.cmd_draw_indexed(
                                     app.command_buffers[current_frame],
                                     num_indices,
@@ -212,7 +225,11 @@ fn main() {
                     Ok(_) => (),
                     Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
                         //Swapchain might be outdated again
-                        vulkan_app.recreate_swapchain(&shaders_loaded, &vertex_input_descriptors, Some(ubo_bindings.clone()));
+                        vulkan_app.recreate_swapchain(
+                            &shaders_loaded,
+                            &vertex_input_descriptors,
+                            Some(ubo_bindings.clone()),
+                        );
                     }
                     _ => panic!("Could not present image!"),
                 };

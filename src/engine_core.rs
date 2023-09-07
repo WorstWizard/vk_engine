@@ -10,14 +10,14 @@ use std::rc::Rc;
 use winit::window::Window;
 
 mod buffer;
-mod textures;
 mod phys_device;
 mod pipeline;
 mod swapchain;
+mod textures;
 
 pub use buffer::ManagedBuffer;
-pub use textures::ManagedImage;
 pub use pipeline::VertexInputDescriptors;
+pub use textures::ManagedImage;
 
 pub trait ValidIndexBufferType {}
 impl ValidIndexBufferType for u16 {}
@@ -473,20 +473,28 @@ pub fn create_uniform_buffers(
     uniform_buffers
 }
 
-
-pub fn create_texture_image(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, dimensions: (u32, u32)) -> ManagedImage {
+pub fn create_texture_image(
+    instance: &Instance,
+    physical_device: &vk::PhysicalDevice,
+    logical_device: &Rc<Device>,
+    dimensions: (u32, u32),
+) -> ManagedImage {
     let texture_image = textures::create_rgba_texture_image(logical_device, dimensions);
-    let image_memory = Some(textures::allocate_and_bind_image(instance, physical_device, logical_device, texture_image, vk::MemoryPropertyFlags::DEVICE_LOCAL));
+    let image_memory = Some(textures::allocate_and_bind_image(
+        instance,
+        physical_device,
+        logical_device,
+        texture_image,
+        vk::MemoryPropertyFlags::DEVICE_LOCAL,
+    ));
     let managed_image = ManagedImage {
         logical_device: Rc::clone(logical_device),
         image: texture_image,
         image_memory,
-        memory_ptr: None
+        memory_ptr: None,
     };
     managed_image
 }
-
-
 
 /// # Safety
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, and `buffer_pointer` must be valid.
@@ -503,7 +511,7 @@ pub unsafe fn immediate_commands<F: FnOnce(vk::CommandBuffer) -> ()>(
     logical_device: &Device,
     command_pool: vk::CommandPool,
     queue: vk::Queue,
-    commands: F
+    commands: F,
 ) {
     let temp_command_buffers = [allocate_command_buffers(logical_device, command_pool, 1)[0]];
     let recording_info =
@@ -535,17 +543,13 @@ pub fn copy_buffer(
     dst_buffer: vk::Buffer,
     memory_size: vk::DeviceSize,
 ) {
-    unsafe { immediate_commands(logical_device, command_pool, queue, |cmd_buffer| {
+    unsafe {
+        immediate_commands(logical_device, command_pool, queue, |cmd_buffer| {
             let copy_region = vk::BufferCopy::builder()
                 .src_offset(0)
                 .dst_offset(0)
                 .size(memory_size);
-            logical_device.cmd_copy_buffer(
-                cmd_buffer,
-                src_buffer,
-                dst_buffer,
-                &[*copy_region],
-            );
-        }
-    )}
+            logical_device.cmd_copy_buffer(cmd_buffer, src_buffer, dst_buffer, &[*copy_region]);
+        })
+    }
 }
