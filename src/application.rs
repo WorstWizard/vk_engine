@@ -361,7 +361,28 @@ impl BaseApp {
             tex_staging_buffer.map_buffer_memory();
             unsafe { write_vec_to_buffer(tex_staging_buffer.memory_ptr.unwrap(), img_samples) };
 
-
+            fn transition_image_layout(image: vk::Image, format: vk::Format, old_layout: vk::ImageLayout, new_layout: vk::ImageLayout) {
+                let barrier = vk::ImageMemoryBarrier::builder()
+                    .old_layout(old_layout)
+                    .new_layout(new_layout)
+                    .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                    .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                    .image(image)
+                    .subresource_range(*vk::ImageSubresourceRange::builder()
+                        .aspect_mask(vk::ImageAspectFlags::COLOR)
+                        .base_mip_level(0)
+                        .level_count(1)
+                        .base_array_layer(0)
+                        .layer_count(1))
+                    .src_access_mask(vk::AccessFlags::empty())
+                    .dst_access_mask(vk::AccessFlags::empty());
+                
+                unsafe {
+                    engine_core::immediate_commands(&logical_device, command_pool, graphics_queue, |cmd_buffer| {
+                        
+                    });
+                }
+            }
         }
         
         //// Create semaphores for in-render-pass synchronization
