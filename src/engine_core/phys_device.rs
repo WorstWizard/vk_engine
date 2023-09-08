@@ -86,6 +86,7 @@ pub fn device_suitability(
     } //Must have extension to query swap chain
     let (_, formats, present_modes) = query_swap_chain_support(surface_loader, surface, device);
     if device_features.geometry_shader == vk::FALSE
+        || device_features.sampler_anisotropy == vk::FALSE
         || formats.is_empty()
         || present_modes.is_empty()
     {

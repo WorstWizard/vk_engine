@@ -31,6 +31,8 @@ pub struct BaseApp {
     pub vertex_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
     pub uniform_buffers: ManuallyDrop<Vec<engine_core::ManagedBuffer>>,
     texture: ManuallyDrop<engine_core::ManagedImage>,
+    texture_image_view: vk::ImageView,
+    texture_sampler: vk::Sampler,
     command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
@@ -73,6 +75,11 @@ impl Drop for BaseApp {
             // Destroying this manually causes an error, guessing ash does it automatically on drop,
             // which it otherwise doesn't with other objects
             //self.logical_device.destroy_descriptor_set_layout(self.descriptor_set_layout.unwrap(), None);
+
+            self.logical_device
+                .destroy_image_view(self.texture_image_view, None);
+            self.logical_device
+                .destroy_sampler(self.texture_sampler, None);
 
             //Explicitly dropping buffers to ensure that the logical device still exists when they do
             ManuallyDrop::drop(&mut self.vertex_buffer);
@@ -524,6 +531,48 @@ impl BaseApp {
             texture_image
         };
 
+        let texture_image_view = {
+            let image_view = vk::ImageViewCreateInfo::builder()
+                .image(texture.image)
+                .view_type(vk::ImageViewType::TYPE_2D)
+                .format(vk::Format::R8G8B8A8_SRGB)
+                .subresource_range(
+                    *vk::ImageSubresourceRange::builder()
+                        .aspect_mask(vk::ImageAspectFlags::COLOR)
+                        .base_mip_level(0)
+                        .level_count(1)
+                        .base_array_layer(0)
+                        .layer_count(1),
+                );
+            unsafe { logical_device.create_image_view(&image_view, None) }
+                .expect("Failed to create image view!")
+        };
+
+        let texture_sampler = {
+            let max_anisotropy =
+                unsafe { instance.get_physical_device_properties(physical_device) }
+                    .limits
+                    .max_sampler_anisotropy;
+            let sampler = vk::SamplerCreateInfo::builder()
+                .mag_filter(vk::Filter::LINEAR)
+                .min_filter(vk::Filter::LINEAR)
+                .address_mode_u(vk::SamplerAddressMode::REPEAT)
+                .address_mode_v(vk::SamplerAddressMode::REPEAT)
+                .address_mode_w(vk::SamplerAddressMode::REPEAT)
+                .anisotropy_enable(true)
+                .max_anisotropy(max_anisotropy)
+                .border_color(vk::BorderColor::INT_OPAQUE_BLACK)
+                .unnormalized_coordinates(false)
+                .compare_enable(false)
+                .compare_op(vk::CompareOp::ALWAYS)
+                .mipmap_mode(vk::SamplerMipmapMode::LINEAR)
+                .mip_lod_bias(0.0)
+                .min_lod(0.0)
+                .max_lod(0.0);
+            unsafe { logical_device.create_sampler(&sampler, None) }
+                .expect("Could not create texture sampler")
+        };
+
         //// Create semaphores for in-render-pass synchronization
         let sync = engine_core::create_sync_primitives(&logical_device);
 
@@ -553,6 +602,8 @@ impl BaseApp {
             index_buffer: ManuallyDrop::new(index_buffer),
             uniform_buffers: ManuallyDrop::new(uniform_buffers),
             texture: ManuallyDrop::new(texture),
+            texture_image_view,
+            texture_sampler,
             descriptor_pool,
             command_buffers,
             sync,

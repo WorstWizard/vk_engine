@@ -132,7 +132,7 @@ pub fn create_logical_device(
         .collect::<Vec<vk::DeviceQueueCreateInfo>>()
         .into_boxed_slice();
 
-    let device_features = vk::PhysicalDeviceFeatures::default();
+    let device_features = vk::PhysicalDeviceFeatures::builder().sampler_anisotropy(true);
     let device_create_info = vk::DeviceCreateInfo::builder()
         .queue_create_infos(device_queue_infos)
         .enabled_features(&device_features)
