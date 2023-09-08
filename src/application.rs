@@ -318,47 +318,6 @@ impl BaseApp {
             )
         };
 
-        //// Descriptor pool
-        let descriptor_pool = {
-            let pool_size = [*vk::DescriptorPoolSize::builder()
-                .ty(vk::DescriptorType::UNIFORM_BUFFER)
-                .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32)];
-            let pool_info = vk::DescriptorPoolCreateInfo::builder()
-                .pool_sizes(&pool_size)
-                .max_sets(MAX_FRAMES_IN_FLIGHT as u32);
-            unsafe { logical_device.create_descriptor_pool(&pool_info, None) }
-                .expect("Failed to create descriptor pool")
-        };
-
-        //// Descriptor sets
-        let descriptor_sets = {
-            let layouts = vec![descriptor_set_layout.unwrap(); MAX_FRAMES_IN_FLIGHT];
-            let alloc_info = vk::DescriptorSetAllocateInfo::builder()
-                .descriptor_pool(descriptor_pool)
-                .set_layouts(layouts.as_slice());
-            unsafe { logical_device.allocate_descriptor_sets(&alloc_info) }
-                .expect("Failed to allocate descriptor sets")
-        };
-        let descriptor_writes = {
-            let mut v = Vec::with_capacity(descriptor_sets.len());
-            for (i, set) in descriptor_sets.iter().enumerate() {
-                let descriptor_buffer_info = [*vk::DescriptorBufferInfo::builder()
-                    .buffer(*uniform_buffers[i])
-                    .offset(0)
-                    .range(std::mem::size_of::<UBOType>() as u64)];
-                v.push(
-                    *vk::WriteDescriptorSet::builder()
-                        .dst_set(*set)
-                        .dst_binding(0)
-                        .dst_array_element(0)
-                        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                        .buffer_info(&descriptor_buffer_info),
-                );
-            }
-            v
-        };
-        unsafe { logical_device.update_descriptor_sets(&descriptor_writes, &[]) }
-
         //// Command buffers
         let command_buffers = engine_core::allocate_command_buffers(
             &logical_device,
@@ -572,6 +531,66 @@ impl BaseApp {
             unsafe { logical_device.create_sampler(&sampler, None) }
                 .expect("Could not create texture sampler")
         };
+
+
+        //// Descriptor pool
+        let descriptor_pool = {
+            let pool_sizes = [
+                *vk::DescriptorPoolSize::builder()
+                    .ty(vk::DescriptorType::UNIFORM_BUFFER)
+                    .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
+                *vk::DescriptorPoolSize::builder()
+                    .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32)
+                ];
+            let pool_info = vk::DescriptorPoolCreateInfo::builder()
+                .pool_sizes(&pool_sizes)
+                .max_sets(MAX_FRAMES_IN_FLIGHT as u32);
+            unsafe { logical_device.create_descriptor_pool(&pool_info, None) }
+                .expect("Failed to create descriptor pool")
+        };
+
+        //// Descriptor sets
+        let descriptor_sets = {
+            let layouts = vec![descriptor_set_layout.unwrap(); MAX_FRAMES_IN_FLIGHT];
+            let alloc_info = vk::DescriptorSetAllocateInfo::builder()
+                .descriptor_pool(descriptor_pool)
+                .set_layouts(layouts.as_slice());
+            unsafe { logical_device.allocate_descriptor_sets(&alloc_info) }
+                .expect("Failed to allocate descriptor sets")
+        };
+        let descriptor_writes = {
+            let mut v = Vec::with_capacity(descriptor_sets.len());
+            for (i, set) in descriptor_sets.iter().enumerate() {
+                let descriptor_buffer_info = [*vk::DescriptorBufferInfo::builder()
+                    .buffer(*uniform_buffers[i])
+                    .offset(0)
+                    .range(std::mem::size_of::<UBOType>() as u64)];
+                let descriptor_image_info = [*vk::DescriptorImageInfo::builder()
+                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                    .image_view(texture_image_view)
+                    .sampler(texture_sampler)];
+                v.push(
+                    *vk::WriteDescriptorSet::builder()
+                        .dst_set(*set)
+                        .dst_binding(0)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                        .buffer_info(&descriptor_buffer_info),
+                );
+                v.push(
+                    *vk::WriteDescriptorSet::builder()
+                        .dst_set(*set)
+                        .dst_binding(1)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                        .image_info(&descriptor_image_info)
+                );
+            }
+            v
+        };
+        unsafe { logical_device.update_descriptor_sets(&descriptor_writes, &[]) }
+
 
         //// Create semaphores for in-render-pass synchronization
         let sync = engine_core::create_sync_primitives(&logical_device);

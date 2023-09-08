@@ -142,6 +142,12 @@ pub fn uniform_buffer_descriptor_set_layout_bindings(
                 .stage_flags(vk::ShaderStageFlags::VERTEX),
         )
     }
+    binding_vec.push(*vk::DescriptorSetLayoutBinding::builder()
+        .binding(binding_vec.len() as u32)
+        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::FRAGMENT)
+    );
     binding_vec
 }
 
