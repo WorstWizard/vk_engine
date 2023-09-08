@@ -214,33 +214,34 @@ pub fn create_swapchain(
     )
 }
 
-pub fn create_image_views(
+pub fn create_swapchain_image_views(
     logical_device: &Device,
     swapchain_images: &Vec<vk::Image>,
-    image_format: vk::Format,
+    image_format: vk::Format
 ) -> Vec<vk::ImageView> {
     let mut image_views = Vec::new();
     for swap_im in swapchain_images {
-        let image_view_info = vk::ImageViewCreateInfo::builder()
-            .image(*swap_im)
-            .view_type(vk::ImageViewType::TYPE_2D)
-            .format(image_format)
-            .components(vk::ComponentMapping {
-                r: vk::ComponentSwizzle::IDENTITY,
-                g: vk::ComponentSwizzle::IDENTITY,
-                b: vk::ComponentSwizzle::IDENTITY,
-                a: vk::ComponentSwizzle::IDENTITY,
-            })
-            .subresource_range(vk::ImageSubresourceRange {
-                aspect_mask: vk::ImageAspectFlags::COLOR,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1,
-            });
-        let image_view =
-            unsafe { logical_device.create_image_view(&image_view_info, None) }.unwrap();
-        image_views.push(image_view);
+        // let image_view_info = vk::ImageViewCreateInfo::builder()
+        //     .image(*swap_im)
+        //     .view_type(vk::ImageViewType::TYPE_2D)
+        //     .format(image_format)
+        //     .components(vk::ComponentMapping {
+        //         r: vk::ComponentSwizzle::IDENTITY,
+        //         g: vk::ComponentSwizzle::IDENTITY,
+        //         b: vk::ComponentSwizzle::IDENTITY,
+        //         a: vk::ComponentSwizzle::IDENTITY,
+        //     })
+        //     .subresource_range(vk::ImageSubresourceRange {
+        //         aspect_mask: vk::ImageAspectFlags::COLOR,
+        //         base_mip_level: 0,
+        //         level_count: 1,
+        //         base_array_layer: 0,
+        //         layer_count: 1,
+        //     });
+        // let image_view =
+        //     unsafe { logical_device.create_image_view(&image_view_info, None) }.unwrap();
+        // image_views.push(image_view);
+        image_views.push(textures::create_image_view(logical_device, *swap_im, image_format, vk::ImageAspectFlags::COLOR))
     }
     image_views
 }
@@ -478,6 +479,7 @@ pub fn create_texture_image(
     physical_device: &vk::PhysicalDevice,
     logical_device: &Rc<Device>,
     format: vk::Format,
+    aspect_flags: vk::ImageAspectFlags,
     dimensions: (u32, u32),
 ) -> ManagedImage {
     let texture_image = textures::create_texture_image(logical_device, format, dimensions);
@@ -488,7 +490,8 @@ pub fn create_texture_image(
         texture_image,
         vk::MemoryPropertyFlags::DEVICE_LOCAL,
     ));
-    let texture_image_view = textures::create_texture_image_view(logical_device, texture_image, format);
+    let texture_image_view =
+        textures::create_image_view(logical_device, texture_image, format, aspect_flags);
     let managed_image = ManagedImage {
         logical_device: Rc::clone(logical_device),
         image: texture_image,
@@ -498,8 +501,6 @@ pub fn create_texture_image(
     };
     managed_image
 }
-
-
 
 /// # Safety
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, and `buffer_pointer` must be valid.

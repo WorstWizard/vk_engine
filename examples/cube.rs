@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Required to prevent console window from appearing on Windows
 
 use ash::vk;
-use glam::{vec3, vec2, Mat4, Quat, Vec3, Vec2};
+use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use std::mem::size_of;
 use std::time;
 use vk_engine::engine_core::write_struct_to_buffer;
@@ -14,7 +14,7 @@ const APP_TITLE: &str = "KK Engine Test App";
 #[repr(C)]
 struct Vertex {
     pos: Vec3,
-    tex: Vec2
+    tex: Vec2,
 }
 
 fn main() {
@@ -36,14 +36,38 @@ fn main() {
 
     // Vertices of a cube
     let verts = vec![
-        Vertex{pos: vec3(-0.5, -0.5, -0.5), tex: vec2(0.0, 0.0)},
-        Vertex{pos: vec3(0.5, -0.5, -0.5), tex: vec2(1.0, 0.0)},
-        Vertex{pos: vec3(-0.5, 0.5, -0.5), tex: vec2(0.0, 1.0)},
-        Vertex{pos: vec3(0.5, 0.5, -0.5), tex: vec2(1.0, 1.0)},
-        Vertex{pos: vec3(-0.5, -0.5, 0.5), tex: vec2(1.0, 0.0)},
-        Vertex{pos: vec3(0.5, -0.5, 0.5), tex: vec2(0.0, 0.0)},
-        Vertex{pos: vec3(-0.5, 0.5, 0.5), tex: vec2(1.0, 1.0)},
-        Vertex{pos: vec3(0.5, 0.5, 0.5), tex: vec2(0.0, 1.0)},
+        Vertex {
+            pos: vec3(-0.5, -0.5, -0.5),
+            tex: vec2(0.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, -0.5),
+            tex: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, 0.5, -0.5),
+            tex: vec2(0.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, -0.5),
+            tex: vec2(1.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, -0.5, 0.5),
+            tex: vec2(1.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(0.5, -0.5, 0.5),
+            tex: vec2(0.0, 0.0),
+        },
+        Vertex {
+            pos: vec3(-0.5, 0.5, 0.5),
+            tex: vec2(1.0, 1.0),
+        },
+        Vertex {
+            pos: vec3(0.5, 0.5, 0.5),
+            tex: vec2(0.0, 1.0),
+        },
     ];
     let indices: Vec<u16> = vec![
         0, 1, 2, //front
@@ -72,7 +96,7 @@ fn main() {
                 .binding(0)
                 .location(1)
                 .format(vk::Format::R32G32_SFLOAT)
-                .offset(12) // Careful! Should use a function for this, difficult in rust without using a crate
+                .offset(12), // Careful! Should use a function for this, difficult in rust without using a crate
         ];
 
         vk_engine::VertexInputDescriptors {

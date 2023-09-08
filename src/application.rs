@@ -1,5 +1,6 @@
 use crate::engine_core::{
-    self, create_staging_buffer, write_vec_to_buffer, ValidIndexBufferType, VertexInputDescriptors,
+    self, create_staging_buffer, create_texture_image, write_vec_to_buffer, ValidIndexBufferType,
+    VertexInputDescriptors,
 };
 use crate::engine_core::{MAX_FRAMES_IN_FLIGHT, VALIDATION_ENABLED, VALIDATION_LAYERS};
 use ash::{
@@ -204,7 +205,7 @@ impl BaseApp {
 
         //// Image views
         let image_views =
-            engine_core::create_image_views(&logical_device, &swapchain_images, image_format);
+            engine_core::create_swapchain_image_views(&logical_device, &swapchain_images, image_format);
 
         //// Push constants
         let push_constants = [1.0];
@@ -322,6 +323,8 @@ impl BaseApp {
             image_views.len() as u32,
         );
 
+        
+
         //// Texture image
         let texture = {
             // Load image texture onto GPU
@@ -332,6 +335,7 @@ impl BaseApp {
                 &physical_device,
                 &logical_device,
                 vk::Format::R8G8B8A8_SRGB,
+                vk::ImageAspectFlags::COLOR,
                 (w, h),
             );
 
@@ -513,7 +517,6 @@ impl BaseApp {
                 .expect("Could not create texture sampler")
         };
 
-
         //// Descriptor pool
         let descriptor_pool = {
             let pool_sizes = [
@@ -522,8 +525,8 @@ impl BaseApp {
                     .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
                 *vk::DescriptorPoolSize::builder()
                     .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-                    .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32)
-                ];
+                    .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
+            ];
             let pool_info = vk::DescriptorPoolCreateInfo::builder()
                 .pool_sizes(&pool_sizes)
                 .max_sets(MAX_FRAMES_IN_FLIGHT as u32);
@@ -565,13 +568,12 @@ impl BaseApp {
                         .dst_binding(1)
                         .dst_array_element(0)
                         .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-                        .image_info(&descriptor_image_info)
+                        .image_info(&descriptor_image_info),
                 );
             }
             v
         };
         unsafe { logical_device.update_descriptor_sets(&descriptor_writes, &[]) }
-
 
         //// Create semaphores for in-render-pass synchronization
         let sync = engine_core::create_sync_primitives(&logical_device);
@@ -786,7 +788,7 @@ impl BaseApp {
                 queue_family_indices,
             );
         let image_views =
-            engine_core::create_image_views(&self.logical_device, &swapchain_images, image_format);
+            engine_core::create_swapchain_image_views(&self.logical_device, &swapchain_images, image_format);
         let (graphics_pipeline, graphics_pipeline_layout, descriptor_set_layout, render_pass) =
             engine_core::create_graphics_pipeline(
                 &self.logical_device,
