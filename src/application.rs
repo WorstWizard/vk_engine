@@ -31,7 +31,6 @@ pub struct BaseApp {
     pub vertex_buffer: ManuallyDrop<engine_core::ManagedBuffer>,
     pub uniform_buffers: ManuallyDrop<Vec<engine_core::ManagedBuffer>>,
     texture: ManuallyDrop<engine_core::ManagedImage>,
-    texture_image_view: vk::ImageView,
     texture_sampler: vk::Sampler,
     command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
@@ -76,8 +75,6 @@ impl Drop for BaseApp {
             // which it otherwise doesn't with other objects
             //self.logical_device.destroy_descriptor_set_layout(self.descriptor_set_layout.unwrap(), None);
 
-            self.logical_device
-                .destroy_image_view(self.texture_image_view, None);
             self.logical_device
                 .destroy_sampler(self.texture_sampler, None);
 
@@ -334,6 +331,7 @@ impl BaseApp {
                 &instance,
                 &physical_device,
                 &logical_device,
+                vk::Format::R8G8B8A8_SRGB,
                 (w, h),
             );
 
@@ -490,23 +488,6 @@ impl BaseApp {
             texture_image
         };
 
-        let texture_image_view = {
-            let image_view = vk::ImageViewCreateInfo::builder()
-                .image(texture.image)
-                .view_type(vk::ImageViewType::TYPE_2D)
-                .format(vk::Format::R8G8B8A8_SRGB)
-                .subresource_range(
-                    *vk::ImageSubresourceRange::builder()
-                        .aspect_mask(vk::ImageAspectFlags::COLOR)
-                        .base_mip_level(0)
-                        .level_count(1)
-                        .base_array_layer(0)
-                        .layer_count(1),
-                );
-            unsafe { logical_device.create_image_view(&image_view, None) }
-                .expect("Failed to create image view!")
-        };
-
         let texture_sampler = {
             let max_anisotropy =
                 unsafe { instance.get_physical_device_properties(physical_device) }
@@ -568,7 +549,7 @@ impl BaseApp {
                     .range(std::mem::size_of::<UBOType>() as u64)];
                 let descriptor_image_info = [*vk::DescriptorImageInfo::builder()
                     .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-                    .image_view(texture_image_view)
+                    .image_view(texture.image_view)
                     .sampler(texture_sampler)];
                 v.push(
                     *vk::WriteDescriptorSet::builder()
@@ -621,7 +602,6 @@ impl BaseApp {
             index_buffer: ManuallyDrop::new(index_buffer),
             uniform_buffers: ManuallyDrop::new(uniform_buffers),
             texture: ManuallyDrop::new(texture),
-            texture_image_view,
             texture_sampler,
             descriptor_pool,
             command_buffers,

@@ -6,6 +6,7 @@ use ash::{vk, Device, Instance};
 pub struct ManagedImage {
     pub logical_device: Rc<Device>,
     pub image: vk::Image,
+    pub image_view: vk::ImageView,
     pub image_memory: Option<vk::DeviceMemory>,
     pub memory_ptr: Option<*mut c_void>,
 }
@@ -43,6 +44,7 @@ impl Drop for ManagedImage {
             if let Some(memory) = self.image_memory {
                 self.logical_device.free_memory(memory, None);
             }
+            self.logical_device.destroy_image_view(self.image_view, None);
             self.logical_device.destroy_image(self.image, None);
         }
     }
@@ -98,7 +100,7 @@ pub fn allocate_and_bind_image(
     image_memory
 }
 
-pub fn create_rgba_texture_image(logical_device: &Device, dimensions: (u32, u32)) -> vk::Image {
+pub fn create_texture_image(logical_device: &Device, format: vk::Format, dimensions: (u32, u32)) -> vk::Image {
     let img_create_info = vk::ImageCreateInfo::builder()
         .image_type(vk::ImageType::TYPE_2D)
         .extent(vk::Extent3D {
@@ -108,7 +110,7 @@ pub fn create_rgba_texture_image(logical_device: &Device, dimensions: (u32, u32)
         })
         .mip_levels(1)
         .array_layers(1)
-        .format(vk::Format::R8G8B8A8_SRGB)
+        .format(format)
         .tiling(vk::ImageTiling::OPTIMAL)
         .initial_layout(vk::ImageLayout::UNDEFINED)
         .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
@@ -118,4 +120,21 @@ pub fn create_rgba_texture_image(logical_device: &Device, dimensions: (u32, u32)
     let image = unsafe { logical_device.create_image(&img_create_info, None) }.unwrap();
 
     image
+}
+
+pub fn create_texture_image_view(logical_device: &Device, image: vk::Image, format: vk::Format) -> vk::ImageView {
+    let image_view = vk::ImageViewCreateInfo::builder()
+        .image(image)
+        .view_type(vk::ImageViewType::TYPE_2D)
+        .format(format)
+        .subresource_range(
+            *vk::ImageSubresourceRange::builder()
+                .aspect_mask(vk::ImageAspectFlags::COLOR)
+                .base_mip_level(0)
+                .level_count(1)
+                .base_array_layer(0)
+                .layer_count(1),
+        );
+    unsafe { logical_device.create_image_view(&image_view, None) }
+        .expect("Failed to create image view!")
 }

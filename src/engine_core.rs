@@ -477,9 +477,10 @@ pub fn create_texture_image(
     instance: &Instance,
     physical_device: &vk::PhysicalDevice,
     logical_device: &Rc<Device>,
+    format: vk::Format,
     dimensions: (u32, u32),
 ) -> ManagedImage {
-    let texture_image = textures::create_rgba_texture_image(logical_device, dimensions);
+    let texture_image = textures::create_texture_image(logical_device, format, dimensions);
     let image_memory = Some(textures::allocate_and_bind_image(
         instance,
         physical_device,
@@ -487,14 +488,18 @@ pub fn create_texture_image(
         texture_image,
         vk::MemoryPropertyFlags::DEVICE_LOCAL,
     ));
+    let texture_image_view = textures::create_texture_image_view(logical_device, texture_image, format);
     let managed_image = ManagedImage {
         logical_device: Rc::clone(logical_device),
         image: texture_image,
+        image_view: texture_image_view,
         image_memory,
         memory_ptr: None,
     };
     managed_image
 }
+
+
 
 /// # Safety
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, and `buffer_pointer` must be valid.
