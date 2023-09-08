@@ -1,7 +1,4 @@
-use crate::engine_core::{
-    self, create_staging_buffer, create_texture_image, write_vec_to_buffer, ValidIndexBufferType,
-    VertexInputDescriptors,
-};
+use crate::engine_core::{self, ManagedImage, ValidIndexBufferType, VertexInputDescriptors};
 use crate::engine_core::{MAX_FRAMES_IN_FLIGHT, VALIDATION_ENABLED, VALIDATION_LAYERS};
 use ash::{
     extensions::{
@@ -41,6 +38,7 @@ pub struct BaseApp {
     pub graphics_pipeline_layout: vk::PipelineLayout,
     pub graphics_pipeline: vk::Pipeline,
     image_views: Vec<vk::ImageView>,
+    depth_image: ManuallyDrop<ManagedImage>,
     pub swapchain: vk::SwapchainKHR,
     pub swapchain_extent: vk::Extent2D,
     swapchain_loader: Swapchain,
@@ -83,6 +81,7 @@ impl Drop for BaseApp {
             ManuallyDrop::drop(&mut self.vertex_buffer);
             ManuallyDrop::drop(&mut self.index_buffer);
             ManuallyDrop::drop(&mut self.uniform_buffers);
+            ManuallyDrop::drop(&mut self.depth_image);
             ManuallyDrop::drop(&mut self.texture);
 
             self.logical_device
@@ -204,8 +203,11 @@ impl BaseApp {
             );
 
         //// Image views
-        let image_views =
-            engine_core::create_swapchain_image_views(&logical_device, &swapchain_images, image_format);
+        let image_views = engine_core::create_swapchain_image_views(
+            &logical_device,
+            &swapchain_images,
+            image_format,
+        );
 
         //// Push constants
         let push_constants = [1.0];
@@ -222,12 +224,27 @@ impl BaseApp {
                 push_constants,
             );
 
+        //// Depth image
+        // Could check for supported formats for depth, but for now just going with D32_SFLOAT
+        // https://vulkan-tutorial.com/en/Depth_buffering
+        let depth_image = engine_core::create_image(
+            &instance,
+            &physical_device,
+            &logical_device,
+            vk::Format::D32_SFLOAT,
+            vk::ImageTiling::OPTIMAL,
+            vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
+            vk::ImageAspectFlags::DEPTH,
+            (swapchain_extent.width, swapchain_extent.height),
+        );
+
         //// Framebuffers
         let framebuffers = engine_core::create_framebuffers(
             &logical_device,
             render_pass,
             swapchain_extent,
             &image_views,
+            depth_image.image_view,
         );
 
         //// Command pool and buffers
@@ -323,30 +340,35 @@ impl BaseApp {
             image_views.len() as u32,
         );
 
-        
-
         //// Texture image
         let texture = {
             // Load image texture onto GPU
             let (img_samples, (w, h)) = crate::load_image_as_rgba_samples("texture.jpg");
 
-            let texture_image = engine_core::create_texture_image(
+            let texture_image = engine_core::create_image(
                 &instance,
                 &physical_device,
                 &logical_device,
                 vk::Format::R8G8B8A8_SRGB,
+                vk::ImageTiling::OPTIMAL,
+                vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
                 vk::ImageAspectFlags::COLOR,
                 (w, h),
             );
 
-            let mut tex_staging_buffer = create_staging_buffer(
+            let mut tex_staging_buffer = engine_core::create_staging_buffer(
                 &instance,
                 &physical_device,
                 &logical_device,
                 vk::DeviceSize::from((w * h * 4) as u64),
             );
             tex_staging_buffer.map_buffer_memory();
-            unsafe { write_vec_to_buffer(tex_staging_buffer.memory_ptr.unwrap(), img_samples) };
+            unsafe {
+                engine_core::write_vec_to_buffer(
+                    tex_staging_buffer.memory_ptr.unwrap(),
+                    img_samples,
+                )
+            };
 
             fn transition_image_layout(
                 logical_device: &Device,
@@ -593,6 +615,7 @@ impl BaseApp {
             swapchain,
             swapchain_extent,
             image_views,
+            depth_image: ManuallyDrop::new(depth_image),
             graphics_pipeline,
             graphics_pipeline_layout,
             descriptor_set_layout,
@@ -787,8 +810,11 @@ impl BaseApp {
                 &self.swapchain_loader,
                 queue_family_indices,
             );
-        let image_views =
-            engine_core::create_swapchain_image_views(&self.logical_device, &swapchain_images, image_format);
+        let image_views = engine_core::create_swapchain_image_views(
+            &self.logical_device,
+            &swapchain_images,
+            image_format,
+        );
         let (graphics_pipeline, graphics_pipeline_layout, descriptor_set_layout, render_pass) =
             engine_core::create_graphics_pipeline(
                 &self.logical_device,
@@ -799,13 +825,27 @@ impl BaseApp {
                 descriptor_set_bindings,
                 [0.0],
             );
+        let depth_image = engine_core::create_image(
+            &self.instance,
+            &physical_device,
+            &self.logical_device,
+            vk::Format::D32_SFLOAT,
+            vk::ImageTiling::OPTIMAL,
+            vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
+            vk::ImageAspectFlags::DEPTH,
+            (swapchain_extent.width, swapchain_extent.height),
+        );
         let framebuffers = engine_core::create_framebuffers(
             &self.logical_device,
             render_pass,
             swapchain_extent,
             &image_views,
+            depth_image.image_view,
         );
 
+        unsafe { ManuallyDrop::drop(&mut self.depth_image) };
+        self.depth_image = ManuallyDrop::new(depth_image);
+        
         self.swapchain = swapchain;
         self.swapchain_extent = swapchain_extent;
         self.image_views = image_views;

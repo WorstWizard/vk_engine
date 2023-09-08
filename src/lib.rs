@@ -62,13 +62,17 @@ pub unsafe fn drawing_commands<F>(
     let render_area = vk::Rect2D::builder()
         .offset(vk::Offset2D { x: 0, y: 0 })
         .extent(app.swapchain_extent);
-    let mut clear_color = [vk::ClearValue::default()];
-    clear_color[0].color.float32 = [0.0, 0.0, 0.0, 1.0];
+    let mut clear_values = [vk::ClearValue::default(); 2];
+    clear_values[0].color.float32 = [0.0, 0.0, 0.0, 1.0];
+    clear_values[1].depth_stencil = vk::ClearDepthStencilValue {
+        depth: 1.0,
+        stencil: 0,
+    };
     let renderpass_begin_info = vk::RenderPassBeginInfo::builder()
         .render_pass(app.render_pass)
         .framebuffer(app.framebuffers[swapchain_image_index as usize])
         .render_area(*render_area)
-        .clear_values(&clear_color);
+        .clear_values(&clear_values);
     app.logical_device.cmd_begin_render_pass(
         app.command_buffers[buffer_index],
         &renderpass_begin_info,

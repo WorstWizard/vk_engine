@@ -217,7 +217,7 @@ pub fn create_swapchain(
 pub fn create_swapchain_image_views(
     logical_device: &Device,
     swapchain_images: &Vec<vk::Image>,
-    image_format: vk::Format
+    image_format: vk::Format,
 ) -> Vec<vk::ImageView> {
     let mut image_views = Vec::new();
     for swap_im in swapchain_images {
@@ -241,7 +241,12 @@ pub fn create_swapchain_image_views(
         // let image_view =
         //     unsafe { logical_device.create_image_view(&image_view_info, None) }.unwrap();
         // image_views.push(image_view);
-        image_views.push(textures::create_image_view(logical_device, *swap_im, image_format, vk::ImageAspectFlags::COLOR))
+        image_views.push(textures::create_image_view(
+            logical_device,
+            *swap_im,
+            image_format,
+            vk::ImageAspectFlags::COLOR,
+        ))
     }
     image_views
 }
@@ -279,10 +284,11 @@ pub fn create_framebuffers(
     render_pass: vk::RenderPass,
     swapchain_extent: vk::Extent2D,
     image_views: &[vk::ImageView],
+    depth_image_view: vk::ImageView,
 ) -> Vec<vk::Framebuffer> {
     let mut swapchain_framebuffers = Vec::new();
     for im_view in image_views {
-        let attachments = [*im_view];
+        let attachments = [*im_view, depth_image_view];
 
         let framebuffer_info = vk::FramebufferCreateInfo::builder()
             .render_pass(render_pass)
@@ -474,15 +480,17 @@ pub fn create_uniform_buffers(
     uniform_buffers
 }
 
-pub fn create_texture_image(
+pub fn create_image(
     instance: &Instance,
     physical_device: &vk::PhysicalDevice,
     logical_device: &Rc<Device>,
     format: vk::Format,
+    tiling: vk::ImageTiling,
+    usage: vk::ImageUsageFlags,
     aspect_flags: vk::ImageAspectFlags,
     dimensions: (u32, u32),
 ) -> ManagedImage {
-    let texture_image = textures::create_texture_image(logical_device, format, dimensions);
+    let texture_image = textures::create_image(logical_device, format, tiling, usage, dimensions);
     let image_memory = Some(textures::allocate_and_bind_image(
         instance,
         physical_device,

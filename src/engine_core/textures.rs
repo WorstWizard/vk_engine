@@ -101,9 +101,11 @@ pub fn allocate_and_bind_image(
     image_memory
 }
 
-pub fn create_texture_image(
+pub fn create_image(
     logical_device: &Device,
     format: vk::Format,
+    tiling: vk::ImageTiling,
+    usage: vk::ImageUsageFlags,
     dimensions: (u32, u32),
 ) -> vk::Image {
     let img_create_info = vk::ImageCreateInfo::builder()
@@ -116,9 +118,9 @@ pub fn create_texture_image(
         .mip_levels(1)
         .array_layers(1)
         .format(format)
-        .tiling(vk::ImageTiling::OPTIMAL)
+        .tiling(tiling)
         .initial_layout(vk::ImageLayout::UNDEFINED)
-        .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
+        .usage(usage)
         .sharing_mode(vk::SharingMode::EXCLUSIVE)
         .samples(vk::SampleCountFlags::TYPE_1);
 
