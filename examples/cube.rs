@@ -208,16 +208,14 @@ fn main() {
 
                 let model =
                     Mat4::from_rotation_translation(Quat::from_rotation_y(theta), model_center);
-                let view = Mat4::look_at_lh(eye, model_center, up_direction);
+                // This look-at function assumes +Y is up, so the up-direction should be inverted to get Vulkan-like coordinates
+                let view = Mat4::look_at_rh(eye, model_center, -up_direction);
                 let projection =
-                    Mat4::perspective_infinite_lh(f32::to_radians(90.0), aspect_ratio, 0.01);
-
-                let mut correction_mat = Mat4::IDENTITY;
-                correction_mat.y_axis = glam::Vec4::new(0.0, -1.0, 0.0, 0.0);
+                    Mat4::perspective_infinite_rh(f32::to_radians(90.0), aspect_ratio, 0.01);
 
                 let ubo = vk_engine::MVP {
                     model,
-                    view: correction_mat.mul_mat4(&view),
+                    view,
                     projection,
                 };
                 // Copy data to uniform buffer
