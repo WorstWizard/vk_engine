@@ -143,7 +143,7 @@ pub fn uniform_buffer_descriptor_set_layout_bindings(
                 .binding(i as u32)
                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
                 .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::VERTEX),
+                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),
         )
     }
     binding_vec.push(
