@@ -5,7 +5,7 @@ use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use std::mem::size_of;
 use std::time;
 use vk_engine::engine_core::write_struct_to_buffer;
-use vk_engine::{init_window, BaseApp, default_descriptor_set_layout_bindings};
+use vk_engine::{default_descriptor_set_layout_bindings, init_window, BaseApp};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::ControlFlow;
 
@@ -68,13 +68,12 @@ fn main() {
         },
     ];
     let indices: Vec<u16> = vec![
-        0, 1, 2, //front
-        1, 3, 2, 5, 4, 6, //back
-        5, 6, 7, 4, 0, 6, //left
-        0, 2, 6, 1, 5, 3, //right
-        5, 7, 3, 4, 5, 0, //top
-        5, 1, 0, 2, 3, 6, //bottom
-        3, 7, 6,
+        0, 1, 2, 1, 3, 2, //front
+        5, 4, 6, 5, 6, 7, //back
+        4, 0, 6, 0, 2, 6, //left
+        1, 5, 3, 5, 7, 3, //right
+        4, 5, 0, 5, 1, 0, //top
+        2, 3, 6, 3, 7, 6, //bottom
     ];
 
     let num_indices = indices.len() as u32;

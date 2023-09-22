@@ -16,11 +16,7 @@ pub fn default_pipeline(
     vertex_input_descriptors: &VertexInputDescriptors,
     descriptor_set_bindings: Vec<vk::DescriptorSetLayoutBinding>,
     push_constants: [f32; 1],
-) -> (
-    vk::Pipeline,
-    vk::PipelineLayout,
-    vk::DescriptorSetLayout,
-) {
+) -> (vk::Pipeline, vk::PipelineLayout, vk::DescriptorSetLayout) {
     // Vertex input settings
     let binding_descriptions = &vertex_input_descriptors.bindings;
     let attribute_descriptions = &vertex_input_descriptors.attributes;
@@ -77,9 +73,8 @@ pub fn default_pipeline(
         let descriptor_set_layout_info =
             vk::DescriptorSetLayoutCreateInfo::builder().bindings(&descriptor_set_bindings);
 
-        unsafe {
-            logical_device.create_descriptor_set_layout(&descriptor_set_layout_info, None)
-        }.unwrap()
+        unsafe { logical_device.create_descriptor_set_layout(&descriptor_set_layout_info, None) }
+            .unwrap()
     };
 
     // Pipeline layout

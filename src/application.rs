@@ -834,7 +834,7 @@ impl BaseApp {
 
         unsafe { ManuallyDrop::drop(&mut self.depth_image) };
         self.depth_image = ManuallyDrop::new(depth_image);
-        
+
         self.swapchain = swapchain;
         self.swapchain_extent = swapchain_extent;
         self.image_views = image_views;

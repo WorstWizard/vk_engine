@@ -4,7 +4,7 @@ use ash::vk;
 use glam::{vec2, Vec2};
 use std::mem::size_of;
 use std::time;
-use vk_engine::{init_window, BaseApp, default_descriptor_set_layout_bindings};
+use vk_engine::{default_descriptor_set_layout_bindings, init_window, BaseApp};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::ControlFlow;
 
@@ -53,7 +53,8 @@ fn main() {
 
     let ubo_bindings = default_descriptor_set_layout_bindings();
 
-    let mut vulkan_app = BaseApp::new::<Vec2, u16, u32>( //Using u32 as uniform buffer type to put *some* sized type in
+    let mut vulkan_app = BaseApp::new::<Vec2, u16, u32>(
+        //Using u32 as uniform buffer type to put *some* sized type in
         window,
         APP_TITLE,
         &shaders_loaded,
