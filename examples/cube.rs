@@ -5,7 +5,7 @@ use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use std::mem::size_of;
 use std::time;
 use vk_engine::engine_core::write_struct_to_buffer;
-use vk_engine::{init_window, uniform_buffer_descriptor_set_layout_bindings, BaseApp};
+use vk_engine::{init_window, BaseApp, default_descriptor_set_layout_bindings};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::ControlFlow;
 
@@ -105,27 +105,16 @@ fn main() {
         }
     };
 
-    // Uniform buffer object
-    let ubo_vec: Vec<vk_engine::MVP> = vec![vk_engine::MVP {
-        model: Mat4::from_translation(vec3(0.0, 0.0, 5.0)),
-        view: Mat4::look_at_rh(
-            Vec3::ZERO,
-            Vec3::new(0.0, 0.0, 5.0),
-            Vec3::new(0.0, -1.0, 0.0),
-        ),
-        projection: Mat4::perspective_infinite_rh(f32::to_radians(90.0), 1.0, 0.01),
-    }];
-    let ubo_bindings = uniform_buffer_descriptor_set_layout_bindings(1);
+    let ubo_bindings = default_descriptor_set_layout_bindings();
 
-    let mut vulkan_app = BaseApp::new(
+    let mut vulkan_app = BaseApp::new::<Vertex, u16, vk_engine::MVP>(
         window,
         APP_TITLE,
         &shaders_loaded,
         verts,
         indices,
         &vertex_input_descriptors,
-        Some(ubo_vec),
-        Some(ubo_bindings.clone()),
+        ubo_bindings.clone(),
     );
 
     //Tracks which frame the CPU is currently writing commands for
@@ -165,7 +154,7 @@ fn main() {
                     vulkan_app.recreate_swapchain(
                         &shaders_loaded,
                         &vertex_input_descriptors,
-                        Some(ubo_bindings.clone()),
+                        ubo_bindings.clone(),
                     );
                 }
                 _ => (),
@@ -184,7 +173,7 @@ fn main() {
                         vulkan_app.recreate_swapchain(
                             &shaders_loaded,
                             &vertex_input_descriptors,
-                            Some(ubo_bindings.clone()),
+                            ubo_bindings.clone(),
                         );
                         return; //Exits current event loop iteration
                     }
@@ -263,7 +252,7 @@ fn main() {
                         vulkan_app.recreate_swapchain(
                             &shaders_loaded,
                             &vertex_input_descriptors,
-                            Some(ubo_bindings.clone()),
+                            ubo_bindings.clone(),
                         );
                     }
                     _ => panic!("Could not present image!"),

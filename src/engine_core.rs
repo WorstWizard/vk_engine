@@ -257,12 +257,12 @@ pub fn create_graphics_pipeline(
     image_format: vk::Format,
     shaders: &Vec<shaders::Shader>,
     vertex_input_descriptors: &VertexInputDescriptors,
-    descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>,
+    descriptor_set_bindings: Vec<vk::DescriptorSetLayoutBinding>,
     push_constants: [f32; 1],
 ) -> (
     vk::Pipeline,
     vk::PipelineLayout,
-    Option<vk::DescriptorSetLayout>,
+    vk::DescriptorSetLayout,
     vk::RenderPass,
 ) {
     let render_pass = pipeline::default_render_pass(logical_device, image_format);

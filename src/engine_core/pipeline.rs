@@ -14,12 +14,12 @@ pub fn default_pipeline(
     swapchain_extent: vk::Extent2D,
     shaders: &Vec<Shader>,
     vertex_input_descriptors: &VertexInputDescriptors,
-    descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>,
+    descriptor_set_bindings: Vec<vk::DescriptorSetLayoutBinding>,
     push_constants: [f32; 1],
 ) -> (
     vk::Pipeline,
     vk::PipelineLayout,
-    Option<vk::DescriptorSetLayout>,
+    vk::DescriptorSetLayout,
 ) {
     // Vertex input settings
     let binding_descriptions = &vertex_input_descriptors.bindings;
@@ -74,19 +74,12 @@ pub fn default_pipeline(
 
     // Descriptor set layout
     let descriptor_set_layout = {
-        if let Some(descriptors) = descriptor_set_bindings {
-            let descriptor_set_layout_info =
-                vk::DescriptorSetLayoutCreateInfo::builder().bindings(&descriptors.as_slice());
+        let descriptor_set_layout_info =
+            vk::DescriptorSetLayoutCreateInfo::builder().bindings(&descriptor_set_bindings);
 
-            Some(
-                unsafe {
-                    logical_device.create_descriptor_set_layout(&descriptor_set_layout_info, None)
-                }
-                .unwrap(),
-            )
-        } else {
-            None
-        }
+        unsafe {
+            logical_device.create_descriptor_set_layout(&descriptor_set_layout_info, None)
+        }.unwrap()
     };
 
     // Pipeline layout
@@ -97,11 +90,9 @@ pub fn default_pipeline(
 
     let mut pipeline_layout_info =
         vk::PipelineLayoutCreateInfo::builder().push_constant_ranges(&push_constant_ranges);
-    let pipeline_layout = if descriptor_set_layout.is_some() {
-        let layout = [descriptor_set_layout.unwrap()];
+    let pipeline_layout = {
+        let layout = [descriptor_set_layout];
         pipeline_layout_info = pipeline_layout_info.set_layouts(&layout);
-        unsafe { logical_device.create_pipeline_layout(&pipeline_layout_info, None) }.unwrap()
-    } else {
         unsafe { logical_device.create_pipeline_layout(&pipeline_layout_info, None) }.unwrap()
     };
 
