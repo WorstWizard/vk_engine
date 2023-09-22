@@ -20,15 +20,13 @@ struct Vertex {
 fn main() {
     let (window, event_loop) = init_window(APP_TITLE, 1000, 1000);
     let shaders_loaded = vec![
-        vk_engine::shaders::compile_shader(
-            "examples/shaders/cube.vert",
-            None,
+        vk_engine::shaders::load_shader(
+            "examples/shaders_compiled/cube.vert.spv",
             vk_engine::shaders::ShaderType::Vertex,
         )
         .unwrap(),
-        vk_engine::shaders::compile_shader(
-            "examples/shaders/cube.frag",
-            None,
+        vk_engine::shaders::load_shader(
+            "examples/shaders_compiled/cube.frag.spv",
             vk_engine::shaders::ShaderType::Fragment,
         )
         .unwrap(),
