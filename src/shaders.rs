@@ -31,7 +31,7 @@ pub fn load_shader<P: AsRef<Path>>(
 // Feature: shader_compilation
 // Leverages shaderc for runtime shader compilation
 #[cfg(feature = "shader_compilation")]
-use shaderc::{CompileOptions, Compiler, ShaderKind};
+use shaderc::{CompileOptions, Compiler, ShaderKind, TargetEnv, EnvVersion};
 #[cfg(feature = "shader_compilation")]
 use std::io::{Read, Write};
 
@@ -75,7 +75,8 @@ pub fn compile_shader<P: AsRef<Path>>(
 
         // Attempt to compile code, panic on failure
         let compiler = Compiler::new().expect("Could not initialize SPIR-V compiler!");
-        let options = CompileOptions::new().expect("Could not initialize SPIR-V compiler!");
+        let mut options = CompileOptions::new().expect("Could not initialize SPIR-V compiler!");
+        options.set_target_env(TargetEnv::Vulkan, EnvVersion::Vulkan1_2 as u32);
         let bin_result = compiler
             .compile_into_spirv(
                 &contents,
