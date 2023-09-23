@@ -55,6 +55,7 @@ pub unsafe fn drawing_commands<F>(
     swapchain_image_index: u32,
     commands: F,
     push_constants: &[f32; 1],
+    index_type: vk::IndexType
 ) where
     F: FnOnce(&mut BaseApp),
 {
@@ -106,7 +107,7 @@ pub unsafe fn drawing_commands<F>(
         app.command_buffers[buffer_index],
         app.index_buffer.buffer,
         0,
-        vk::IndexType::UINT16,
+        index_type,
     );
     app.logical_device.cmd_bind_descriptor_sets(
         app.command_buffers[buffer_index],
