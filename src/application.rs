@@ -30,7 +30,7 @@ pub struct BaseApp {
     pub uniform_buffers: ManuallyDrop<Vec<engine_core::ManagedBuffer>>,
     texture: ManuallyDrop<engine_core::ManagedImage>,
     texture_sampler: vk::Sampler,
-    command_pool: vk::CommandPool,
+    pub command_pool: vk::CommandPool,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
     pub descriptor_sets: Vec<vk::DescriptorSet>,
@@ -50,7 +50,7 @@ pub struct BaseApp {
     surface_loader: Surface,
     _messenger: vk::DebugUtilsMessengerEXT,
     _debug_loader: DebugUtils,
-    instance: Box<Instance>,
+    pub instance: Box<Instance>,
     _entry: Box<Entry>,
 }
 impl Drop for BaseApp {
