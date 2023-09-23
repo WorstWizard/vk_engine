@@ -134,7 +134,8 @@ pub fn create_logical_device(
 
     let mut device_features = vk::PhysicalDeviceFeatures2::builder()
         .features(*vk::PhysicalDeviceFeatures::builder().sampler_anisotropy(true));
-    let mut scalar_block_layout_feature = vk::PhysicalDeviceScalarBlockLayoutFeatures::default();
+    let mut scalar_block_layout_feature = vk::PhysicalDeviceScalarBlockLayoutFeatures::builder()
+        .scalar_block_layout(true);
     let device_create_info = vk::DeviceCreateInfo::builder()
         .push_next(&mut scalar_block_layout_feature)
         .push_next(&mut device_features)
