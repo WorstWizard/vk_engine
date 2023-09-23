@@ -413,14 +413,14 @@ pub fn create_vertex_buffer(
     }
 }
 
-pub fn create_index_buffer(
+pub fn create_index_buffer<IndexType: ValidIndexBufferType>(
     instance: &Instance,
     physical_device: &vk::PhysicalDevice,
     logical_device: &Rc<Device>,
     count: usize,
 ) -> ManagedBuffer {
     //Easy to get the memory size wrong, might fail invisibly
-    let memory_size = (std::mem::size_of::<u16>() * count) as u64;
+    let memory_size = (std::mem::size_of::<IndexType>() * count) as u64;
     let index_buffer = buffer::create_buffer(
         logical_device,
         memory_size,
