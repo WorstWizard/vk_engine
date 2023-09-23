@@ -512,7 +512,7 @@ pub fn create_image(
 
 /// # Safety
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, and `buffer_pointer` must be valid.
-pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: Vec<T>) {
+pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: &Vec<T>) {
     std::ptr::copy_nonoverlapping(data.as_ptr(), buffer_pointer as *mut T, data.len());
 }
 

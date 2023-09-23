@@ -271,7 +271,7 @@ impl BaseApp {
             staging_buffer.map_buffer_memory();
 
             unsafe {
-                engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), vertices)
+                engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), &vertices)
             };
             engine_core::copy_buffer(
                 &logical_device,
@@ -301,7 +301,7 @@ impl BaseApp {
             staging_buffer.map_buffer_memory();
 
             unsafe {
-                engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), indices)
+                engine_core::write_vec_to_buffer(staging_buffer.memory_ptr.unwrap(), &indices)
             };
             engine_core::copy_buffer(
                 &logical_device,
@@ -355,7 +355,7 @@ impl BaseApp {
             unsafe {
                 engine_core::write_vec_to_buffer(
                     tex_staging_buffer.memory_ptr.unwrap(),
-                    img_samples,
+                    &img_samples,
                 )
             };
 
