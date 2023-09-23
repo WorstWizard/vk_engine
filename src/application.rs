@@ -536,6 +536,9 @@ impl BaseApp {
                     .ty(vk::DescriptorType::UNIFORM_BUFFER)
                     .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
                 *vk::DescriptorPoolSize::builder()
+                    .ty(vk::DescriptorType::STORAGE_BUFFER)
+                    .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
+                *vk::DescriptorPoolSize::builder()
                     .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                     .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
             ];
@@ -578,6 +581,14 @@ impl BaseApp {
                     *vk::WriteDescriptorSet::builder()
                         .dst_set(*set)
                         .dst_binding(1)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                        .buffer_info(&descriptor_buffer_info),
+                );
+                v.push(
+                    *vk::WriteDescriptorSet::builder()
+                        .dst_set(*set)
+                        .dst_binding(2)
                         .dst_array_element(0)
                         .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                         .image_info(&descriptor_image_info),
