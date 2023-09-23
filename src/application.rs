@@ -837,7 +837,7 @@ impl BaseApp {
         self.swapchain_loader
             .destroy_swapchain(self.swapchain, None);
     }
-    pub fn update_descriptor_sets<UBOType: Sized>(&self) {
+    pub fn update_descriptor_sets<UBOType: Sized, VertexType: Sized>(&self, num_verts: u64) {
         let descriptor_writes = {
             let mut v = Vec::with_capacity(self.descriptor_sets.len());
             for (i, set) in self.descriptor_sets.iter().enumerate() {
@@ -845,6 +845,10 @@ impl BaseApp {
                     .buffer(*self.uniform_buffers[i])
                     .offset(0)
                     .range(std::mem::size_of::<UBOType>() as u64)];
+                let descriptor_reused_vert_buffer_info = [*vk::DescriptorBufferInfo::builder()
+                    .buffer(**self.vertex_buffer)
+                    .offset(0)
+                    .range(std::mem::size_of::<VertexType>() as u64 * num_verts)];
                 let descriptor_image_info = [*vk::DescriptorImageInfo::builder()
                     .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
                     .image_view(self.texture.image_view)
@@ -863,7 +867,7 @@ impl BaseApp {
                         .dst_binding(1)
                         .dst_array_element(0)
                         .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                        .buffer_info(&descriptor_buffer_info),
+                        .buffer_info(&descriptor_reused_vert_buffer_info),
                 );
                 v.push(
                     *vk::WriteDescriptorSet::builder()
