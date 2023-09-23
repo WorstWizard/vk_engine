@@ -536,10 +536,13 @@ impl BaseApp {
                     .ty(vk::DescriptorType::UNIFORM_BUFFER)
                     .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
                 *vk::DescriptorPoolSize::builder()
+                    .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
+                *vk::DescriptorPoolSize::builder()
                     .ty(vk::DescriptorType::STORAGE_BUFFER)
                     .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
                 *vk::DescriptorPoolSize::builder()
-                    .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .ty(vk::DescriptorType::STORAGE_BUFFER)
                     .descriptor_count(MAX_FRAMES_IN_FLIGHT as u32),
             ];
             let pool_info = vk::DescriptorPoolCreateInfo::builder()
@@ -837,7 +840,7 @@ impl BaseApp {
         self.swapchain_loader
             .destroy_swapchain(self.swapchain, None);
     }
-    pub fn update_descriptor_sets<UBOType: Sized, VertexType: Sized>(&self, num_verts: u64) {
+    pub fn update_descriptor_sets<UBOType: Sized, VertexType: Sized, IndexType: ValidIndexBufferType>(&self, num_verts: u64, num_indices: u64) {
         let descriptor_writes = {
             let mut v = Vec::with_capacity(self.descriptor_sets.len());
             for (i, set) in self.descriptor_sets.iter().enumerate() {
@@ -849,6 +852,10 @@ impl BaseApp {
                     .buffer(**self.vertex_buffer)
                     .offset(0)
                     .range(std::mem::size_of::<VertexType>() as u64 * num_verts)];
+                let descriptor_reused_index_buffer_info = [*vk::DescriptorBufferInfo::builder()
+                    .buffer(**self.index_buffer)
+                    .offset(0)
+                    .range(std::mem::size_of::<IndexType>() as u64 * num_indices)];
                 let descriptor_image_info = [*vk::DescriptorImageInfo::builder()
                     .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
                     .image_view(self.texture.image_view)
@@ -863,8 +870,16 @@ impl BaseApp {
                 );
                 v.push(
                     *vk::WriteDescriptorSet::builder()
+                    .dst_set(*set)
+                    .dst_binding(1)
+                    .dst_array_element(0)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(&descriptor_image_info),
+                );
+                v.push(
+                    *vk::WriteDescriptorSet::builder()
                         .dst_set(*set)
-                        .dst_binding(1)
+                        .dst_binding(2)
                         .dst_array_element(0)
                         .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
                         .buffer_info(&descriptor_reused_vert_buffer_info),
@@ -872,10 +887,10 @@ impl BaseApp {
                 v.push(
                     *vk::WriteDescriptorSet::builder()
                         .dst_set(*set)
-                        .dst_binding(2)
+                        .dst_binding(3)
                         .dst_array_element(0)
-                        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-                        .image_info(&descriptor_image_info),
+                        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                        .buffer_info(&descriptor_reused_index_buffer_info),
                 );
             }
             v
