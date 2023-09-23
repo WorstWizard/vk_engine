@@ -9,7 +9,7 @@ use std::os::raw::{c_char, c_void};
 use std::rc::Rc;
 use winit::window::Window;
 
-mod buffer;
+pub mod buffer;
 mod phys_device;
 mod pipeline;
 mod swapchain;
