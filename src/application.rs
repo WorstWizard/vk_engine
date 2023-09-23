@@ -283,7 +283,7 @@ impl BaseApp {
             );
         }
 
-        let index_buffer = engine_core::create_index_buffer(
+        let index_buffer = engine_core::create_index_buffer::<IndexType>(
             &instance,
             &physical_device,
             &logical_device,
