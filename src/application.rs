@@ -558,45 +558,6 @@ impl BaseApp {
             unsafe { logical_device.allocate_descriptor_sets(&alloc_info) }
                 .expect("Failed to allocate descriptor sets")
         };
-        let descriptor_writes = {
-            let mut v = Vec::with_capacity(descriptor_sets.len());
-            for (i, set) in descriptor_sets.iter().enumerate() {
-                let descriptor_buffer_info = [*vk::DescriptorBufferInfo::builder()
-                    .buffer(*uniform_buffers[i])
-                    .offset(0)
-                    .range(std::mem::size_of::<UBOType>() as u64)];
-                let descriptor_image_info = [*vk::DescriptorImageInfo::builder()
-                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-                    .image_view(texture.image_view)
-                    .sampler(texture_sampler)];
-                v.push(
-                    *vk::WriteDescriptorSet::builder()
-                        .dst_set(*set)
-                        .dst_binding(0)
-                        .dst_array_element(0)
-                        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                        .buffer_info(&descriptor_buffer_info),
-                );
-                v.push(
-                    *vk::WriteDescriptorSet::builder()
-                        .dst_set(*set)
-                        .dst_binding(1)
-                        .dst_array_element(0)
-                        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                        .buffer_info(&descriptor_buffer_info),
-                );
-                v.push(
-                    *vk::WriteDescriptorSet::builder()
-                        .dst_set(*set)
-                        .dst_binding(2)
-                        .dst_array_element(0)
-                        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-                        .image_info(&descriptor_image_info),
-                );
-            }
-            v
-        };
-        unsafe { logical_device.update_descriptor_sets(&descriptor_writes, &[]) }
 
         //// Create semaphores for in-render-pass synchronization
         let sync = engine_core::create_sync_primitives(&logical_device);
@@ -875,5 +836,46 @@ impl BaseApp {
         }
         self.swapchain_loader
             .destroy_swapchain(self.swapchain, None);
+    }
+    pub fn update_descriptor_sets<UBOType: Sized>(&self) {
+        let descriptor_writes = {
+            let mut v = Vec::with_capacity(self.descriptor_sets.len());
+            for (i, set) in self.descriptor_sets.iter().enumerate() {
+                let descriptor_buffer_info = [*vk::DescriptorBufferInfo::builder()
+                    .buffer(*self.uniform_buffers[i])
+                    .offset(0)
+                    .range(std::mem::size_of::<UBOType>() as u64)];
+                let descriptor_image_info = [*vk::DescriptorImageInfo::builder()
+                    .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                    .image_view(self.texture.image_view)
+                    .sampler(self.texture_sampler)];
+                v.push(
+                    *vk::WriteDescriptorSet::builder()
+                        .dst_set(*set)
+                        .dst_binding(0)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                        .buffer_info(&descriptor_buffer_info),
+                );
+                v.push(
+                    *vk::WriteDescriptorSet::builder()
+                        .dst_set(*set)
+                        .dst_binding(1)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                        .buffer_info(&descriptor_buffer_info),
+                );
+                v.push(
+                    *vk::WriteDescriptorSet::builder()
+                        .dst_set(*set)
+                        .dst_binding(2)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                        .image_info(&descriptor_image_info),
+                );
+            }
+            v
+        };
+        unsafe { self.logical_device.update_descriptor_sets(&descriptor_writes, &[]) }
     }
 }
