@@ -5,7 +5,7 @@ use glam::{vec2, vec3, Mat4, Quat, Vec2, Vec3};
 use std::mem::size_of;
 use std::time;
 use vk_engine::engine_core::write_struct_to_buffer;
-use vk_engine::{init_window, uniform_buffer_descriptor_set_layout_bindings, BaseApp};
+use vk_engine::{default_descriptor_set_layout_bindings, init_window, BaseApp};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::ControlFlow;
 
@@ -20,15 +20,13 @@ struct Vertex {
 fn main() {
     let (window, event_loop) = init_window(APP_TITLE, 1000, 1000);
     let shaders_loaded = vec![
-        vk_engine::shaders::compile_shader(
-            "examples/shaders/cube.vert",
-            None,
+        vk_engine::shaders::load_shader(
+            "examples/shaders_compiled/cube.vert.spv",
             vk_engine::shaders::ShaderType::Vertex,
         )
         .unwrap(),
-        vk_engine::shaders::compile_shader(
-            "examples/shaders/cube.frag",
-            None,
+        vk_engine::shaders::load_shader(
+            "examples/shaders_compiled/cube.frag.spv",
             vk_engine::shaders::ShaderType::Fragment,
         )
         .unwrap(),
@@ -70,13 +68,12 @@ fn main() {
         },
     ];
     let indices: Vec<u16> = vec![
-        0, 1, 2, //front
-        1, 3, 2, 5, 4, 6, //back
-        5, 6, 7, 4, 0, 6, //left
-        0, 2, 6, 1, 5, 3, //right
-        5, 7, 3, 4, 5, 0, //top
-        5, 1, 0, 2, 3, 6, //bottom
-        3, 7, 6,
+        0, 1, 2, 1, 3, 2, //front
+        5, 4, 6, 5, 6, 7, //back
+        4, 0, 6, 0, 2, 6, //left
+        1, 5, 3, 5, 7, 3, //right
+        4, 5, 0, 5, 1, 0, //top
+        2, 3, 6, 3, 7, 6, //bottom
     ];
 
     let num_indices = indices.len() as u32;
@@ -105,27 +102,16 @@ fn main() {
         }
     };
 
-    // Uniform buffer object
-    let ubo_vec: Vec<vk_engine::MVP> = vec![vk_engine::MVP {
-        model: Mat4::from_translation(vec3(0.0, 0.0, 5.0)),
-        view: Mat4::look_at_rh(
-            Vec3::ZERO,
-            Vec3::new(0.0, 0.0, 5.0),
-            Vec3::new(0.0, -1.0, 0.0),
-        ),
-        projection: Mat4::perspective_infinite_rh(f32::to_radians(90.0), 1.0, 0.01),
-    }];
-    let ubo_bindings = uniform_buffer_descriptor_set_layout_bindings(1);
+    let ubo_bindings = default_descriptor_set_layout_bindings();
 
-    let mut vulkan_app = BaseApp::new(
+    let mut vulkan_app = BaseApp::new::<Vertex, u16, vk_engine::MVP>(
         window,
         APP_TITLE,
         &shaders_loaded,
         verts,
         indices,
         &vertex_input_descriptors,
-        Some(ubo_vec),
-        Some(ubo_bindings.clone()),
+        ubo_bindings.clone(),
     );
 
     //Tracks which frame the CPU is currently writing commands for
@@ -165,7 +151,7 @@ fn main() {
                     vulkan_app.recreate_swapchain(
                         &shaders_loaded,
                         &vertex_input_descriptors,
-                        Some(ubo_bindings.clone()),
+                        ubo_bindings.clone(),
                     );
                 }
                 _ => (),
@@ -184,7 +170,7 @@ fn main() {
                         vulkan_app.recreate_swapchain(
                             &shaders_loaded,
                             &vertex_input_descriptors,
-                            Some(ubo_bindings.clone()),
+                            ubo_bindings.clone(),
                         );
                         return; //Exits current event loop iteration
                     }
@@ -263,7 +249,7 @@ fn main() {
                         vulkan_app.recreate_swapchain(
                             &shaders_loaded,
                             &vertex_input_descriptors,
-                            Some(ubo_bindings.clone()),
+                            ubo_bindings.clone(),
                         );
                     }
                     _ => panic!("Could not present image!"),

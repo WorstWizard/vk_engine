@@ -4,7 +4,7 @@ use ash::vk;
 use glam::{vec2, Vec2};
 use std::mem::size_of;
 use std::time;
-use vk_engine::{init_window, BaseApp};
+use vk_engine::{default_descriptor_set_layout_bindings, init_window, BaseApp};
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::ControlFlow;
 
@@ -32,7 +32,7 @@ fn main() {
         vec2(-1.0, 1.0),
         vec2(1.0, 1.0),
     ];
-    let indices: Vec<u16> = vec![0, 1, 2, 1, 3, 2];
+    let indices: Vec<u16> = vec![0, 2, 1, 1, 2, 3];
 
     let vertex_input_descriptors = {
         let binding = vec![*vk::VertexInputBindingDescription::builder()
@@ -50,15 +50,18 @@ fn main() {
             attributes: attribute,
         }
     };
-    let mut vulkan_app = BaseApp::new::<Vec2, u16, ()>(
+
+    let ubo_bindings = default_descriptor_set_layout_bindings();
+
+    let mut vulkan_app = BaseApp::new::<Vec2, u16, u32>(
+        //Using u32 as uniform buffer type to put *some* sized type in
         window,
         APP_TITLE,
         &shaders_loaded,
         verts,
         indices,
         &vertex_input_descriptors,
-        None,
-        None,
+        ubo_bindings.clone(),
     );
 
     //Tracks which frame the CPU is currently writing commands for
@@ -108,7 +111,7 @@ fn main() {
                         vulkan_app.recreate_swapchain(
                             &shaders_loaded,
                             &vertex_input_descriptors,
-                            None,
+                            ubo_bindings.clone(),
                         );
                         return; //Exits current event loop iteration
                     }
@@ -160,7 +163,7 @@ fn main() {
                         vulkan_app.recreate_swapchain(
                             &shaders_loaded,
                             &vertex_input_descriptors,
-                            None,
+                            ubo_bindings.clone(),
                         );
                         return;
                     }

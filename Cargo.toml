@@ -17,7 +17,3 @@ image = "0.24.7"
 
 [features]
 shader_compilation = ["dep:shaderc"]
-
-[[example]]
-name = "cube"
-required-features = ["shader_compilation"]

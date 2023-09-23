@@ -133,27 +133,24 @@ pub struct MVP {
     pub projection: glam::Mat4,
 }
 
-pub fn uniform_buffer_descriptor_set_layout_bindings(
-    num_uniforms: usize,
-) -> Vec<vk::DescriptorSetLayoutBinding> {
-    let mut binding_vec = Vec::with_capacity(num_uniforms);
-    for i in 0..num_uniforms {
-        binding_vec.push(
-            *vk::DescriptorSetLayoutBinding::builder()
-                .binding(i as u32)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),
-        )
-    }
-    binding_vec.push(
+/**
+Default descriptor set layout bindings:
+Binding 0: Uniform buffer, used in vertex stage
+Binding 1: Image sampler, used in fragment stage
+*/
+pub fn default_descriptor_set_layout_bindings() -> Vec<vk::DescriptorSetLayoutBinding> {
+    vec![
         *vk::DescriptorSetLayoutBinding::builder()
-            .binding(binding_vec.len() as u32)
+            .binding(0)
+            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::VERTEX),
+        *vk::DescriptorSetLayoutBinding::builder()
+            .binding(1)
             .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
             .descriptor_count(1)
             .stage_flags(vk::ShaderStageFlags::FRAGMENT),
-    );
-    binding_vec
+    ]
 }
 
 pub fn load_image_as_rgba_samples(img_path: &str) -> (Vec<u8>, (u32, u32)) {

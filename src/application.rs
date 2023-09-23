@@ -34,7 +34,7 @@ pub struct BaseApp {
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
     pub descriptor_sets: Vec<vk::DescriptorSet>,
-    pub descriptor_set_layout: Option<vk::DescriptorSetLayout>,
+    pub descriptor_set_layout: vk::DescriptorSetLayout,
     pub graphics_pipeline_layout: vk::PipelineLayout,
     pub graphics_pipeline: vk::Pipeline,
     image_views: Vec<vk::ImageView>,
@@ -111,8 +111,7 @@ impl BaseApp {
         vertices: Vec<VertexType>,
         indices: Vec<IndexType>,
         vertex_input_descriptors: &VertexInputDescriptors,
-        uniforms: Option<Vec<UBOType>>,
-        descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>,
+        descriptor_set_bindings: Vec<vk::DescriptorSetLayoutBinding>,
     ) -> BaseApp {
         let entry = Box::new(unsafe { Entry::load() }.unwrap());
 
@@ -315,23 +314,13 @@ impl BaseApp {
         }
 
         //// Uniform buffers
-        let uniform_buffers = if let Some(ubo_vec) = &uniforms {
-            engine_core::create_uniform_buffers(
-                &instance,
-                &physical_device,
-                &logical_device,
-                (std::mem::size_of::<UBOType>() * ubo_vec.len()) as u64,
-                MAX_FRAMES_IN_FLIGHT,
-            )
-        } else {
-            engine_core::create_uniform_buffers(
-                &instance,
-                &physical_device,
-                &logical_device,
-                0_u64,
-                0,
-            )
-        };
+        let uniform_buffers = engine_core::create_uniform_buffers(
+            &instance,
+            &physical_device,
+            &logical_device,
+            std::mem::size_of::<UBOType>() as u64,
+            MAX_FRAMES_IN_FLIGHT,
+        );
 
         //// Command buffers
         let command_buffers = engine_core::allocate_command_buffers(
@@ -558,7 +547,7 @@ impl BaseApp {
 
         //// Descriptor sets
         let descriptor_sets = {
-            let layouts = vec![descriptor_set_layout.unwrap(); MAX_FRAMES_IN_FLIGHT];
+            let layouts = vec![descriptor_set_layout; MAX_FRAMES_IN_FLIGHT];
             let alloc_info = vk::DescriptorSetAllocateInfo::builder()
                 .descriptor_pool(descriptor_pool)
                 .set_layouts(layouts.as_slice());
@@ -792,7 +781,7 @@ impl BaseApp {
         &mut self,
         shaders: &Vec<crate::shaders::Shader>,
         vertex_input_descriptors: &VertexInputDescriptors,
-        descriptor_set_bindings: Option<Vec<vk::DescriptorSetLayoutBinding>>,
+        descriptor_set_bindings: Vec<vk::DescriptorSetLayoutBinding>,
     ) {
         unsafe {
             self.logical_device.device_wait_idle().unwrap();
@@ -845,7 +834,7 @@ impl BaseApp {
 
         unsafe { ManuallyDrop::drop(&mut self.depth_image) };
         self.depth_image = ManuallyDrop::new(depth_image);
-        
+
         self.swapchain = swapchain;
         self.swapchain_extent = swapchain_extent;
         self.image_views = image_views;
@@ -864,10 +853,8 @@ impl BaseApp {
             .destroy_pipeline(self.graphics_pipeline, None);
         self.logical_device
             .destroy_pipeline_layout(self.graphics_pipeline_layout, None);
-        if self.descriptor_set_layout.is_some() {
-            self.logical_device
-                .destroy_descriptor_set_layout(self.descriptor_set_layout.unwrap(), None);
-        }
+        self.logical_device
+            .destroy_descriptor_set_layout(self.descriptor_set_layout, None);
         self.logical_device
             .destroy_render_pass(self.render_pass, None);
         for view in self.image_views.drain(..) {
