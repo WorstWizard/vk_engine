@@ -126,10 +126,10 @@ impl BaseApp {
 
         let app_info = vk::ApplicationInfo::builder()
             .application_name(&app_name)
-            .application_version(vk::make_api_version(0, 1, 0, 0))
+            .application_version(vk::make_api_version(0, 1, 1, 0))
             .engine_name(&engine_name)
-            .engine_version(vk::API_VERSION_1_0)
-            .api_version(vk::API_VERSION_1_0);
+            .engine_version(vk::API_VERSION_1_3)
+            .api_version(vk::API_VERSION_1_3);
 
         let mut instance_extensions =
             ash_window::enumerate_required_extensions(window.raw_display_handle())

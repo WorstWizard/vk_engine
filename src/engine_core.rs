@@ -132,10 +132,13 @@ pub fn create_logical_device(
         .collect::<Vec<vk::DeviceQueueCreateInfo>>()
         .into_boxed_slice();
 
-    let device_features = vk::PhysicalDeviceFeatures::builder().sampler_anisotropy(true);
+    let mut device_features = vk::PhysicalDeviceFeatures2::builder()
+        .features(*vk::PhysicalDeviceFeatures::builder().sampler_anisotropy(true));
+    let mut scalar_block_layout_feature = vk::PhysicalDeviceScalarBlockLayoutFeatures::default();
     let device_create_info = vk::DeviceCreateInfo::builder()
+        .push_next(&mut scalar_block_layout_feature)
+        .push_next(&mut device_features)
         .queue_create_infos(device_queue_infos)
-        .enabled_features(&device_features)
         .enabled_extension_names(&DEVICE_EXTS);
 
     Rc::new(
