@@ -514,6 +514,184 @@ pub fn create_image(
     managed_image
 }
 
+
+pub fn load_image_immediate(instance: &Instance, physical_device: &vk::PhysicalDevice, logical_device: &Rc<Device>, command_pool: vk::CommandPool, queue: vk::Queue, filepath: &str) -> ManagedImage {
+    // Load image texture onto GPU
+    let (img_samples, (w, h)) = crate::load_image_as_rgba_samples(filepath);
+
+    let texture_image = create_image(
+        &instance,
+        &physical_device,
+        &logical_device,
+        vk::Format::R8G8B8A8_SRGB,
+        vk::ImageTiling::OPTIMAL,
+        vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
+        vk::ImageAspectFlags::COLOR,
+        (w, h),
+    );
+
+    let mut tex_staging_buffer = create_staging_buffer(
+        &instance,
+        &physical_device,
+        &logical_device,
+        vk::DeviceSize::from((w * h * 4) as u64),
+    );
+    tex_staging_buffer.map_buffer_memory();
+    unsafe {
+        write_vec_to_buffer(
+            tex_staging_buffer.memory_ptr.unwrap(),
+            &img_samples,
+        )
+    };
+
+    fn transition_image_layout(
+        logical_device: &Device,
+        command_pool: vk::CommandPool,
+        queue: vk::Queue,
+        image: vk::Image,
+        _format: vk::Format,
+        old_layout: vk::ImageLayout,
+        new_layout: vk::ImageLayout,
+    ) {
+        let mut barrier = vk::ImageMemoryBarrier::builder()
+            .old_layout(old_layout)
+            .new_layout(new_layout)
+            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .image(image)
+            .subresource_range(
+                *vk::ImageSubresourceRange::builder()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .base_mip_level(0)
+                    .level_count(1)
+                    .base_array_layer(0)
+                    .layer_count(1),
+            );
+
+        let src_stage;
+        let dst_stage;
+
+        if old_layout == vk::ImageLayout::UNDEFINED
+            && new_layout == vk::ImageLayout::TRANSFER_DST_OPTIMAL
+        {
+            barrier = barrier
+                .src_access_mask(vk::AccessFlags::empty())
+                .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE);
+            src_stage = vk::PipelineStageFlags::TOP_OF_PIPE;
+            dst_stage = vk::PipelineStageFlags::TRANSFER;
+        } else if old_layout == vk::ImageLayout::TRANSFER_DST_OPTIMAL
+            && new_layout == vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+        {
+            barrier = barrier
+                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .dst_access_mask(vk::AccessFlags::SHADER_READ);
+            src_stage = vk::PipelineStageFlags::TRANSFER;
+            dst_stage = vk::PipelineStageFlags::FRAGMENT_SHADER;
+        } else {
+            panic!("Image layout transition not supported!");
+        }
+
+        unsafe {
+            immediate_commands(
+                &logical_device,
+                command_pool,
+                queue,
+                |cmd_buffer| {
+                    logical_device.cmd_pipeline_barrier(
+                        cmd_buffer,
+                        src_stage,
+                        dst_stage,
+                        vk::DependencyFlags::empty(),
+                        &[],
+                        &[],
+                        &[*barrier],
+                    );
+                },
+            );
+        }
+    }
+
+    fn copy_buffer_to_image(
+        logical_device: &Device,
+        command_pool: vk::CommandPool,
+        queue: vk::Queue,
+        buffer: vk::Buffer,
+        image: vk::Image,
+        width: u32,
+        height: u32,
+    ) {
+        let region = vk::BufferImageCopy::builder()
+            .buffer_offset(0)
+            .buffer_row_length(0)
+            .buffer_image_height(0)
+            .image_subresource(
+                *vk::ImageSubresourceLayers::builder()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .mip_level(0)
+                    .base_array_layer(0)
+                    .layer_count(1),
+            )
+            .image_offset(vk::Offset3D { x: 0, y: 0, z: 0 })
+            .image_extent(vk::Extent3D {
+                width,
+                height,
+                depth: 1,
+            });
+        unsafe {
+            immediate_commands(
+                logical_device,
+                command_pool,
+                queue,
+                |cmd_buffer| {
+                    logical_device.cmd_copy_buffer_to_image(
+                        cmd_buffer,
+                        buffer,
+                        image,
+                        vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                        &[*region],
+                    );
+                },
+            );
+        }
+    }
+
+    transition_image_layout(
+        &logical_device,
+        command_pool,
+        queue,
+        texture_image.image,
+        vk::Format::R8G8B8A8_SRGB,
+        vk::ImageLayout::UNDEFINED,
+        vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+    );
+
+    copy_buffer_to_image(
+        &logical_device,
+        command_pool,
+        queue,
+        tex_staging_buffer.buffer,
+        texture_image.image,
+        w,
+        h,
+    );
+
+    transition_image_layout(
+        &logical_device,
+        command_pool,
+        queue,
+        texture_image.image,
+        vk::Format::R8G8B8A8_SRGB,
+        vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+        vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+    );
+
+    texture_image
+}
+
+
+
+
+
 /// # Safety
 /// The memory pointed to by `buffer_pointer` must have at least as much space allocated as is required by `data`, and `buffer_pointer` must be valid.
 pub unsafe fn write_vec_to_buffer<T: Sized>(buffer_pointer: *mut c_void, data: &Vec<T>) {

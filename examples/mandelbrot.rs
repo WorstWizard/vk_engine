@@ -146,6 +146,7 @@ fn main() {
                                 );
                             },
                             &push_constants,
+                            vk::IndexType::UINT16
                         );
                     })
                 };
