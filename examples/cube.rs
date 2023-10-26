@@ -232,6 +232,7 @@ fn main() {
                                 );
                             },
                             &[0.0],
+                            vk::IndexType::UINT16
                         );
                     })
                 };
