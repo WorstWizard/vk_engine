@@ -58,14 +58,7 @@ impl Drop for BaseApp {
         unsafe {
             self.logical_device.device_wait_idle().unwrap(); //Wait until idle before destroying
 
-            for i in 0..MAX_FRAMES_IN_FLIGHT {
-                self.logical_device
-                    .destroy_semaphore(self.sync.image_available[i], None);
-                self.logical_device
-                    .destroy_semaphore(self.sync.render_finished[i], None);
-                self.logical_device
-                    .destroy_fence(self.sync.in_flight[i], None);
-            }
+            self.sync.destroy(&self.logical_device);
 
             self.logical_device
                 .destroy_descriptor_pool(self.descriptor_pool, None);
@@ -114,7 +107,6 @@ impl BaseApp {
         descriptor_set_bindings: Vec<vk::DescriptorSetLayoutBinding>,
     ) -> BaseApp {
         let entry = Box::new(unsafe { Entry::load() }.unwrap());
-
         if VALIDATION_ENABLED && !engine_core::check_validation_layer_support(&entry) {
             panic!("Validation layer requested but not available!");
         }

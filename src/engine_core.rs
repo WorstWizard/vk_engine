@@ -341,6 +341,19 @@ pub fn create_sync_primitives(logical_device: &Device) -> SyncPrims {
         in_flight,
     }
 }
+impl SyncPrims {
+    pub unsafe fn destroy(&self, logical_device: &Device) {
+        for sem in &self.image_available {
+            logical_device.destroy_semaphore(*sem, None);
+        }
+        for sem in &self.render_finished {
+            logical_device.destroy_semaphore(*sem, None);
+        }
+        for fence in &self.in_flight {
+            logical_device.destroy_fence(*fence, None);
+        }
+    }
+}
 
 pub fn allocate_command_buffers(
     logical_device: &Device,
