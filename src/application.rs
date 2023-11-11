@@ -199,6 +199,7 @@ impl BaseApp {
                 &surface,
                 &physical_device,
                 &swapchain_loader,
+                vk::PresentModeKHR::MAILBOX,
                 queue_family_indices,
             );
 
@@ -603,6 +604,7 @@ impl BaseApp {
                 &self.surface,
                 &physical_device,
                 &self.swapchain_loader,
+                vk::PresentModeKHR::MAILBOX,
                 queue_family_indices,
             );
         let image_views = engine_core::create_swapchain_image_views(

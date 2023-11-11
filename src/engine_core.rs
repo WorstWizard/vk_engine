@@ -165,13 +165,14 @@ pub fn create_swapchain(
     surface: &vk::SurfaceKHR,
     physical_device: &vk::PhysicalDevice,
     swapchain_loader: &Swapchain,
+    preferred_present_mode: vk::PresentModeKHR,
     queue_family_indices: phys_device::QueueFamilyIndices,
 ) -> (vk::SwapchainKHR, vk::Format, vk::Extent2D, Vec<vk::Image>) {
     let (surface_capabilities, formats, present_modes) =
         phys_device::query_swap_chain_support(surface_loader, surface, physical_device);
     let surface_format = swapchain::choose_swap_surface_format(&formats);
     let present_mode =
-        swapchain::choose_swap_present_mode(&present_modes, vk::PresentModeKHR::MAILBOX);
+        swapchain::choose_swap_present_mode(&present_modes, preferred_present_mode);
     let swap_extent = swapchain::choose_swap_extent(window, &surface_capabilities);
     let image_count = {
         //Pick smaller value between minimum + 1 and the maximum

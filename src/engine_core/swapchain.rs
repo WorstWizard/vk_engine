@@ -25,6 +25,7 @@ pub fn choose_swap_present_mode(
             return *available_mode;
         }
     }
+    println!("Preferred present mode not available, defaulting to FIFO");
     vk::PresentModeKHR::FIFO
 }
 
