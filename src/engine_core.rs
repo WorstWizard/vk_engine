@@ -197,7 +197,7 @@ pub fn create_swapchain(
         .composite_alpha(vk::CompositeAlphaFlagsKHR::OPAQUE)
         .clipped(true)
         //Might change depending on use case v v v
-        .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT);
+        .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_SRC);
 
     let indices = queue_family_indices.array();
     if queue_family_indices.graphics_queue != queue_family_indices.present_queue {
