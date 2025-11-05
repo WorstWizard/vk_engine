@@ -183,7 +183,7 @@ fn main() {
                 // Change time constant if spinning is enabled
                 if spinning {
                     let time_delta = timer.elapsed();
-                    theta = (theta + time_delta.as_secs_f32() * speed) % (2.0 * 3.14159265);
+                    theta = (theta + time_delta.as_secs_f32() * speed) % (2.0 * std::f32::consts::PI);
                 }
 
                 let eye = Vec3::new(0.0, -1.0, 0.0);
